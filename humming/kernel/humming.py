@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import ClassVar
 
 import jinja2
+import torch
 
 import humming.utils.jit as jit_utils
 from humming import dtypes
@@ -381,11 +382,17 @@ class HummingKernel(KernelRuntime, LayerConfig, ComputeConfig, TuningConfig):
             # Parallelize kernel compilation using multiple threads,
             # but ensure kernel loading occurs in the main thread to prevent CUDA context issues.
             # (KernelRuntime would skip loading when running in child thread).
-            executor = ThreadPoolExecutor(max_workers=16)
-            for config, kernel, num_sms in executor.map(prepare_kernel, tuning_config_obj):
-                kernel.load_cubin()
-                res += [config[0], config[1], kernel.kernel_id, num_sms]
-            executor.shutdown(wait=False)
+            # Capture the current CUDA device so worker threads use the correct GPU;
+            # CUDA device is thread-local and new threads default to GPU 0.
+            _current_device = torch.cuda.current_device()
+            with ThreadPoolExecutor(
+                max_workers=16,
+                initializer=torch.cuda.set_device,
+                initargs=(_current_device,),
+            ) as executor:
+                for config, kernel, num_sms in executor.map(prepare_kernel, tuning_config_obj):
+                    kernel.load_cubin()
+                    res += [config[0], config[1], kernel.kernel_id, num_sms]
         else:
             for config in tuning_config_obj:
                 kernel_config, kernel, num_sms = prepare_kernel(config)
