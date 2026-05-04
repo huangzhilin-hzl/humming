@@ -187,9 +187,13 @@ class CompressedTensorsWeightSchema(BaseWeightSchema):
             weight_scale = weight_scale.repeat_interleave(self.block_structure[0], -2)
             group_size = self.block_structure[1]
         elif self.strategy == "tensor":
-            weight_scale = weight_scale.unsqueeze(-1)
-            shape_n_repeats = torch.tensor(shape_n_stacks, device=weight_scale.device)
-            weight_scale = weight_scale.repeat_interleave(shape_n_repeats, -2)
+            weight_scale = self._may_process_global_scale(
+                weight_scale,
+                shape_n_stacks=shape_n_stacks,
+                shape_k_stacks=shape_k_stacks,
+                num_experts=num_experts,
+                force_repeat=True,
+            ).to(param_dtype)
             group_size = 0
         else:
             assert self.strategy == "channel"
