@@ -37,7 +37,7 @@ def register_op(
         _lib._register_fake(op_name, fake_impl_func)
 
 
-def get_humming_launcher_build_dir():
+def get_humming_launcher_build_dir(use_torch_stable_api: bool):
     import humming
 
     dirname = os.path.dirname(humming.__file__)
@@ -50,7 +50,8 @@ def get_humming_launcher_build_dir():
     py_version = f"py{sys.version_info.major}{sys.version_info.minor}"
     torch_major, torch_minor = torch.__version__.split(".")[:2]
     torch_version = f"torch{torch_major}{torch_minor}"
-    version = py_version + "_" + torch_version
+    abi_tag = "stable" if use_torch_stable_api else "nostable"
+    version = f"{py_version}_{torch_version}_{abi_tag}"
 
     launcher_build_dir = os.path.join(cache_dir, f"launcher/{version}/{launcher_code_hash}")
     Path(launcher_build_dir).mkdir(exist_ok=True, parents=True)
@@ -81,7 +82,6 @@ def _resolve_use_torch_stable_api() -> bool:
 
 
 def init_humming_launcher():
-    from packaging.version import Version
     from torch.library import register_fake
 
     from humming.config import GemmType
@@ -96,7 +96,7 @@ def init_humming_launcher():
     with FileLock(lock_filename):
         import humming
 
-        build_dir = get_humming_launcher_build_dir()
+        build_dir = get_humming_launcher_build_dir(USE_TORCH_STABLE_API)
         torch_lock_file = os.path.join(build_dir, "lock")
         if os.path.exists(torch_lock_file):
             os.unlink(torch_lock_file)
