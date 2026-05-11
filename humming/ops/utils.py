@@ -57,6 +57,29 @@ def get_humming_launcher_build_dir():
     return launcher_build_dir
 
 
+def _resolve_use_torch_stable_api() -> bool:
+    """Decide whether to compile the launcher with the torch stable C ABI.
+
+    Defaults to enabled for torch >= 2.11, which is the first release whose
+    stable ABI registers all ScalarType cases humming relies on, including
+    Float8_e8m0fnu (added in pytorch/pytorch#173669, gated by
+    TORCH_FEATURE_VERSION >= TORCH_VERSION_2_11_0). On torch 2.10.x the
+    stable ABI is missing Float8_e8m0fnu (ScalarType 44), so passing a
+    UE8M0 weight scale through ``torch.ops.humming.launch_kernel`` fails
+    with ``RuntimeError: Not yet supported ScalarType 44``.
+
+    The default can be overridden via the ``HUMMING_USE_TORCH_STABLE_API``
+    environment variable for users who want to force one path or the other
+    (e.g. to test the stable ABI on an older torch with a custom build).
+    """
+    from packaging.version import Version
+
+    override = os.environ.get("HUMMING_USE_TORCH_STABLE_API")
+    if override is not None:
+        return override.strip().lower() in ("1", "true", "yes", "on")
+    return Version(torch.__version__) >= Version("2.11")
+
+
 def init_humming_launcher():
     from packaging.version import Version
     from torch.library import register_fake
@@ -68,7 +91,7 @@ def init_humming_launcher():
     if _launcher_inited:
         return
 
-    USE_TORCH_STABLE_API = Version(torch.__version__) >= Version("2.10")
+    USE_TORCH_STABLE_API = _resolve_use_torch_stable_api()
     lock_filename = jit_utils.get_humming_lock_filename("launcher")
     with FileLock(lock_filename):
         import humming
