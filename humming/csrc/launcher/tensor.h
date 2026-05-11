@@ -81,8 +81,6 @@ inline void check_tensor_b(Tensor &tensor, KernelData &kernel_data, int64_t dev)
   uint32_t problem_shape_k = kernel_data.problem_shape_k;
   uint32_t num_bits = get_dtype_num_bits(kernel_data.b_dtype_id);
   uint32_t pack_size_k = 256 / get_dtype_num_bits(kernel_data.a_dtype_id);
-  uint32_t tensor_shape_n = problem_shape_n * pack_size_k * num_bits / 32;
-  uint32_t tensor_shape_k = problem_shape_k / pack_size_k;
 
   std::vector<int64_t> expected_shape = {};
   if (kernel_data.gemm_type_id != 0) expected_shape.push_back(kernel_data.num_experts);
@@ -271,9 +269,6 @@ inline CUtensorMap make_tma_desc_bzp(std::optional<Tensor> &tensor_, KernelData 
   uint32_t block_shape_n = kernel_data.block_shape_n;
   uint32_t block_shape_k = kernel_data.block_shape_k;
   uint32_t group_size = kernel_data.weight_scale_group_size;
-  if (kernel_data.is_channel_weight_scale || kernel_data.is_group_weight_scale) {
-    ASSERT_CHECK(false, "TMA is not supported for blockwise scale and tensorwise scale");
-  }
   uint32_t num_groups = group_size == 0 ? 1 : CEIL_DIV(block_shape_k, group_size);
 
   auto tensor = tensor_.value();

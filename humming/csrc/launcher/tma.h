@@ -34,7 +34,7 @@ inline CUtensorMap make_tma_desc(
     std::vector<uint32_t> smem_dims,
     uint32_t swizzle_bytes = 0) {
 
-  CUtensorMap tmap;
+  CUtensorMap tmap = {};
   if (!tensor_.has_value() || smem_dims.size() == 0) return tmap;
   Tensor tensor = tensor_.value();
 

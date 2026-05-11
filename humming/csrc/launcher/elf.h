@@ -58,7 +58,7 @@ struct Elf64_Sym {
 class CubinReader {
 private:
   std::map<std::string, uint64_t> symbolOffsets;
-  const std::string &cubinPath;
+  std::string cubinPath;
 
 public:
   CubinReader(const std::string &path) : cubinPath(path) {

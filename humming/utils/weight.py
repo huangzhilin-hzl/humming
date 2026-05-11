@@ -91,7 +91,7 @@ def quantize_weight(
             group_size_n,
             group_size,
         )
-        quanted_weight.permute(0, 1, 3, 2, 4).contiguous()
+        quanted_weight = quanted_weight.permute(0, 1, 3, 2, 4).contiguous()
         quanted_weight = quanted_weight.view(e, n, k)
         assert weight_scale is not None
         weight_scale = weight_scale.view(e, n // group_size_n, k // group_size)
@@ -142,7 +142,7 @@ def dequantize_weight(
     if isinstance(dtype, dtypes.FloatingPointType):
         weight = ops.dequant_weight(weight, dtype.exponent_bits, dtype.mantissa_bits, True)
     else:
-        assert isinstance(dtype, dtypes.InergerType)
+        assert isinstance(dtype, dtypes.IntegerType)
         assert not dtype.is_signed
         weight = weight.float()
 
@@ -151,7 +151,7 @@ def dequantize_weight(
         group_size = weight.size(-1) // zero_point.size(-1)
         zero_point = zero_point.repeat_interleave(group_size, -1)
         weight = weight - zero_point
-    elif isinstance(dtype, dtypes.InergerType):
+    elif isinstance(dtype, dtypes.IntegerType):
         assert not dtype.is_signed
         weight = weight - (1 << (dtype.num_bits - 1))
 

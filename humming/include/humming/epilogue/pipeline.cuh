@@ -88,7 +88,7 @@ public:
   CUDA_INLINE
   void release_gmem_barrier() {
     if (TuningConfig::kUseTmaC || slice_count > 3) {
-      uint32_t val = slice_id == 0 ? 1 - slice_count : 0;
+      int32_t val = slice_id == 0 ? 1 - static_cast<int32_t>(slice_count) : 0;
       barrier_release2<TuningConfig::kNumMathThreads, TuningConfig::kNumThreads>(&locks[locks_offset], val);
     } else {
       barrier_release<TuningConfig::kNumMathThreads, TuningConfig::kNumThreads>(&locks[locks_offset], slice_id == slice_count - 1);

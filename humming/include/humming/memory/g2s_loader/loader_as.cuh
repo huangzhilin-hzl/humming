@@ -70,7 +70,7 @@ public:
       for (uint32_t i = 0; i < CEIL_DIV(BlockShape::M, kNumLoadThreads); i++) {
         PRAGMA_UNROLL
         for (uint32_t j = 0; j < kSmemStride; j++) {
-          uint32_t smem_offset = (i * BlockShape::M + thread_id) * kSmemStride + j;
+          uint32_t smem_offset = (i * kNumLoadThreads + thread_id) * kSmemStride + j;
           uint32_t smem_row = smem_offset / kSmemStride;
           uint32_t smem_col = smem_offset % kSmemStride;
 

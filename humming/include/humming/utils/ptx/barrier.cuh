@@ -63,11 +63,11 @@ CUDA_INLINE void barrier_release2(int *lock, int32_t val) {
     if (val < 0) {
       __stcg(&lock[0], val);
     } else {
-      int32_t val = 1;
+      int32_t val2 = 1;
       asm volatile("fence.acq_rel.gpu;\n");
       asm volatile("red.relaxed.gpu.global.add.s32 [%0], %1;\n"
                    :
-                   : "l"(lock), "r"(val));
+                   : "l"(lock), "r"(val2));
     }
   }
 }

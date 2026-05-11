@@ -16,6 +16,7 @@ class ModeloptWeightSchema(BaseWeightSchema):
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "ModeloptWeightSchema":
+        algo_cls = cls
         if cls is ModeloptWeightSchema:
             quant_algo = config["quant_algo"].lower()
             algo_cls: type[ModeloptWeightSchema]
@@ -78,7 +79,7 @@ class ModeloptNvfp4WeightSchema(ModeloptWeightSchema):
         return tensor_meta
 
     def infer_shape(self, tensors: dict[str, torch.Tensor]) -> tuple[int, int, int | None, bool]:
-        shape_n, shape_k = tensors["weight"].shape[:-2:]
+        shape_n, shape_k = tensors["weight"].shape[-2:]
         shape_k = shape_k * 2
         has_bias = "bias" in tensors
         return shape_n, shape_k, None, has_bias
@@ -131,7 +132,7 @@ class ModeloptNvfp4WeightSchema(ModeloptWeightSchema):
 @dataclasses.dataclass(kw_only=True)
 class ModeloptMxfp8WeightSchema(ModeloptWeightSchema):
     quant_method: str = "modelopt"
-    quant_algo: str = "mvfp8"
+    quant_algo: str = "mxfp8"
 
     def get_tensors_attrs(
         self,
@@ -165,7 +166,7 @@ class ModeloptMxfp8WeightSchema(ModeloptWeightSchema):
         return tensor_meta
 
     def infer_shape(self, tensors: dict[str, torch.Tensor]) -> tuple[int, int, int | None, bool]:
-        shape_n, shape_k = tensors["weight"].shape[:-2:]
+        shape_n, shape_k = tensors["weight"].shape[:-2]
         has_bias = "bias" in tensors
         return shape_n, shape_k, None, has_bias
 

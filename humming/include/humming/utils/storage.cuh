@@ -106,10 +106,10 @@ public:
   static constexpr uint32_t kSmemStrideBZP = BlockShape::N * kNumZPBits / 32 / 4;
   static constexpr uint32_t kSmemStrideBias = BlockShape::N * 16 / 32 / 4;
 
-  static constexpr uint32_t kGroupSzieA = LayerConfig::kInputScaleGroupSize;
-  static constexpr uint32_t kGroupSzieB = LayerConfig::kWeightScaleGroupSize;
-  static constexpr uint32_t kNumGroupsA = kIsGroupInputScale ? CEIL_DIV(BlockShape::K, kGroupSzieA) : 0;
-  static constexpr uint32_t kNumGroupsB = kIsGroupOrBlockWeightScale ? CEIL_DIV(BlockShape::K, kGroupSzieB) : 0;
+  static constexpr uint32_t kGroupSizeA = LayerConfig::kInputScaleGroupSize;
+  static constexpr uint32_t kGroupSizeB = LayerConfig::kWeightScaleGroupSize;
+  static constexpr uint32_t kNumGroupsA = kIsGroupInputScale ? CEIL_DIV(BlockShape::K, kGroupSizeA) : 0;
+  static constexpr uint32_t kNumGroupsB = kIsGroupOrBlockWeightScale ? CEIL_DIV(BlockShape::K, kGroupSizeB) : 0;
 
   static constexpr uint32_t kStageSizeA = BlockShape::M * kSmemStrideA;
   static constexpr uint32_t kStageSizeB = BlockShape::K / kPartMmaShapeK * kSmemStrideB;

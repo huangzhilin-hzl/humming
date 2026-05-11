@@ -119,8 +119,8 @@ class HummingLayerMeta(LayerConfig):
     def __post_init__(self):
         super().__post_init__()
 
-        if isinstance(self.b_dtype, dtypes.InergerType):
-            if isinstance(self.b_dtype, dtypes.FloatingPointType):
+        if isinstance(self.b_dtype, dtypes.IntegerType):
+            if isinstance(self.a_dtype, dtypes.FloatingPointType):
                 self.b_dtype = dataclasses.replace(self.b_dtype, is_signed=False)
             elif self.a_dtype.num_bits == self.b_dtype.num_bits:
                 self.b_dtype = dataclasses.replace(self.b_dtype, is_signed=True)
@@ -144,10 +144,14 @@ class HummingLayerMeta(LayerConfig):
 
         if self.use_int_weight_scale:
             self.weight_scale_type = WeightScaleType.GROUP_TENSOR
+            self.is_group_weight_scale = True
+            self.is_tensor_weight_scale = True
             self.bs_dtype = self.c_dtype
 
         if self.use_fused_e8m0_scale:
             self.weight_scale_type = WeightScaleType.GROUP_TENSOR
+            self.is_group_weight_scale = True
+            self.is_tensor_weight_scale = True
 
         self._meta_str = self.to_str()
 
@@ -306,7 +310,6 @@ class HummingLayerMethod:
             assert global_scale is not None
             out_global_scale = global_scale * scale_factor
         else:
-            meta.weight_scale_type = WeightScaleType.GROUP_TENSOR
             out_global_scale = torch.full(
                 (meta.num_experts or 1,),
                 fill_value=scale_factor.item(),
@@ -335,6 +338,8 @@ class HummingLayerMethod:
             max_range_val = 3
         elif meta.a_dtype == dtypes.float8e4m3:
             max_range_val = 12
+        else:
+            raise ValueError(f"unsupported a_dtype: {meta.a_dtype}")
 
         max_range = torch.tensor(max_range_val, dtype=torch.uint8, device=scale_range.device)
         scale_range = scale_range.minimum(max_range)
@@ -351,7 +356,6 @@ class HummingLayerMethod:
             assert global_scale is not None
             out_global_scale = global_scale * scale_factor
         else:
-            meta.weight_scale_type = WeightScaleType.GROUP_TENSOR
             out_global_scale = scale_factor
 
         return weight, weight_scale, out_global_scale
@@ -471,7 +475,7 @@ class HummingLayerMethod:
             dtype=str(meta.a_dtype),
             group_size=None,
         )
-        return quanted_input, (input_scale if input_scale.size() else None)
+        return quanted_input, (input_scale if input_scale.numel() else None)
 
     @classmethod
     def forward_layer(
@@ -588,7 +592,7 @@ class HummingLayer(HummingModule):
                     setattr(param, key, value)
             setattr(self, name, param)
 
-        locks = torch.zeros((1024), dtype=torch.int32, device="cuda:0")
+        locks = torch.zeros((1024), dtype=torch.int32, device=torch.cuda.current_device())
         self.register_buffer("locks", locks)
 
     @staticmethod

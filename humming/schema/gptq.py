@@ -72,8 +72,8 @@ class GPTQWeightSchema(BaseWeightSchema):
         return tensor_meta
 
     def infer_shape(self, tensors: dict[str, torch.Tensor]) -> tuple[int, int, int | None, bool]:
-        shape_n = tensors["qweight"].size(-1) * 32 // self.bits
-        shape_k = tensors["qweight"].size(-2)
+        shape_n = tensors["qweight"].size(-1)
+        shape_k = tensors["qweight"].size(-2) * 32 // self.bits
         has_bias = "bias" in tensors
         return shape_n, shape_k, None, has_bias
 

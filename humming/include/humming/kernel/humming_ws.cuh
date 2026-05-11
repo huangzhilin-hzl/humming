@@ -97,7 +97,7 @@ __global__ __launch_bounds__(TuningConfig::kNumThreads, TuningConfig::kNumCtasPe
     }
 
     auto producer = ProducerPipeline(smem, pa(), pb(), pas(), pbs(), pbzp(), pbias(), shape_m);
-    producer.init_mbarrir();
+    producer.init_mbarrier();
     __syncthreads();
     while (scheduler.get_next_block()) {
       uint32_t &slice_iters = scheduler.slice_iters;
@@ -135,7 +135,7 @@ __global__ __launch_bounds__(TuningConfig::kNumThreads, TuningConfig::kNumCtasPe
     auto consumer = ConsumerPipeline(smem);
     auto s2r_pipe = S2RMemoryPipeline(smem, mma, epilogue);
 
-    consumer.init_mbarrir();
+    consumer.init_mbarrier();
     __syncthreads();
     consumer.arrive(kNumStages);
 

@@ -70,7 +70,7 @@ def estimate_compute_bound_threshold(weight_nbytes, shape_n, shape_k, dtype, use
     if dtype in ["float8e4m3", "float8e5m2", "int8"]:
         max_tops = max_tops * 2
         num_bits = 8
-    elif dtype in ["int4", "float8e2m1"]:
+    elif dtype in ["int4", "float4e2m1"]:
         max_tops = max_tops * 4
         num_bits = 4
     sm_version_tuple = torch.cuda.get_device_capability()

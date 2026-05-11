@@ -91,6 +91,7 @@ def _quant_tensor_kernel(
     xq_ptr,
     scale_ptr,
     stride_x,
+    num_blocks,
     is_dynamic: tl.constexpr,
     N: tl.constexpr,
     GROUP_SIZE: tl.constexpr,
@@ -105,13 +106,14 @@ def _quant_tensor_kernel(
 
     for g in tl.static_range(GROUPS_PER_BLOCK):
         group_id = block_id * GROUPS_PER_BLOCK + g
+        in_range = group_id < num_blocks
         row_id = group_id // row_num_blocks
         col_block_id = group_id % row_num_blocks
         offset = row_id * stride_x + col_block_id * GROUP_SIZE
 
         if dtype == "int4" or dtype == "float4e2m1":
             cols = tl.arange(0, BLOCK // 2)
-            mask = cols < GROUP_SIZE // 2
+            mask = (cols < GROUP_SIZE // 2) & in_range
             cols1 = cols * 2
             cols2 = cols * 2 + 1
 
@@ -121,25 +123,29 @@ def _quant_tensor_kernel(
             scale = (
                 tl.maximum(calc_scale(x1, dtype), calc_scale(x2, dtype))
                 if is_dynamic
-                else tl.load(scale_ptr + col_block_id)
+                else tl.load(scale_ptr + col_block_id, mask=in_range)
             )
             inv_scale = 1 / scale
             x_q = quant_tensor_x2(x1 * inv_scale, x2 * inv_scale, dtype)
             tl.store(xq_ptr + group_id * GROUP_SIZE // 2 + cols, x_q, mask=mask)
 
             if is_dynamic:
-                tl.store(scale_ptr + row_id * row_num_blocks + col_block_id, scale)
+                tl.store(scale_ptr + row_id * row_num_blocks + col_block_id, scale, mask=in_range)
         else:
             cols = tl.arange(0, BLOCK)
-            mask = cols < GROUP_SIZE
+            mask = (cols < GROUP_SIZE) & in_range
             x = tl.load(x_ptr + offset + cols, mask=mask, other=0.0).to(tl.float32)
-            scale = calc_scale(x, dtype) if is_dynamic else tl.load(scale_ptr + col_block_id)
+            scale = (
+                calc_scale(x, dtype)
+                if is_dynamic
+                else tl.load(scale_ptr + col_block_id, mask=in_range)
+            )
             inv_scale = 1 / scale
             x_q = quant_tensor(x * inv_scale, dtype)
             tl.store(xq_ptr + group_id * GROUP_SIZE + cols, x_q, mask=mask)
 
             if is_dynamic:
-                tl.store(scale_ptr + row_id * row_num_blocks + col_block_id, scale)
+                tl.store(scale_ptr + row_id * row_num_blocks + col_block_id, scale, mask=in_range)
 
 
 def quant_input(
@@ -204,6 +210,7 @@ def quant_input(
             outputs,
             scales,
             inputs.stride(0),
+            num_blocks,
             is_dynamic,
             inputs.size(1),
             group_size,

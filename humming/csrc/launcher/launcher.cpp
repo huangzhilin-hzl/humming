@@ -81,7 +81,6 @@ Tensor launch_kernel(
 
   int64_t dev = a.get_device();
   int64_t shape_m = a.size(0);
-  int64_t num_experts = b.dim() == 3 ? b.size(0) : 0;
   if (valid_shape_m <= 0) {
     valid_shape_m = shape_m * (base_kernel_data.gemm_type_id == 1 ? top_k : 1);
   }
@@ -133,6 +132,11 @@ Tensor launch_kernel(
     use_int64_expert_layout = expert_layout_.value().scalar_type() == ScalarType::Long;
   }
 
+  uint32_t shape_m_u32 = static_cast<uint32_t>(shape_m);
+  uint32_t top_k_u32 = static_cast<uint32_t>(top_k);
+  ASSERT_CHECK(static_cast<int64_t>(shape_m_u32) == shape_m, "shape_m overflows uint32_t: ", shape_m);
+  ASSERT_CHECK(static_cast<int64_t>(top_k_u32) == top_k, "top_k overflows uint32_t: ", top_k);
+
   void *kernel_args[] = {
       kernel_data.use_tma_a ? to_void_ptr(&tensor_map_a) : to_void_ptr(&a_ptr),
       kernel_data.use_tma_b ? to_void_ptr(&tensor_map_b) : to_void_ptr(&b_ptr),
@@ -148,8 +152,8 @@ Tensor launch_kernel(
       &expert_layout_ptr,
       &tensor_map_buffer_ptr,
       &locks_ptr,
-      &shape_m,
-      &top_k,
+      &shape_m_u32,
+      &top_k_u32,
       &use_int64_expert_layout};
 
   CUlaunchConfig config = {};
@@ -186,10 +190,7 @@ int64_t register_kernel(const std::string &cubin_path, const std::string &func_n
   int64_t hash_id = manual_crc32(cubin_path);
   hash_id = (hash_id << 30) + manual_crc32(func_name);
 
-  KernelData kernel_data;
-  if (g_kernel_data.find(hash_id) != g_kernel_data.end()) {
-    kernel_data = g_kernel_data[hash_id];
-  } else {
+  if (g_kernel_data.find(hash_id) == g_kernel_data.end()) {
     CUmodule hModule;
     CUfunction hKernel;
     check_curesult(cuModuleLoad(&hModule, cubin_path.c_str()), "cuModuleLoad");

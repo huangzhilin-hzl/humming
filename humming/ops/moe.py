@@ -154,6 +154,7 @@ def moe_fused_mul_sum(
     if outputs is None:
         outputs = torch.empty(output_shape, dtype=inputs.dtype, device=inputs.device)
 
+    assert outputs.is_contiguous()
     assert outputs.shape == output_shape
     assert topk_weights.shape == (num_tokens, top_k)
 

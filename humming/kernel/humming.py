@@ -290,7 +290,8 @@ class HummingKernel(KernelRuntime, LayerConfig, ComputeConfig, TuningConfig):
             assert self.b_dtype.exponent_bits <= self.a_dtype.exponent_bits
             assert self.b_dtype.mantissa_bits <= self.a_dtype.mantissa_bits
             assert self.b_dtype.exponent_bits >= 1
-        elif self.b_dtype.is_floating_point_type and not self.a_dtype.is_integer_type:
+        elif self.b_dtype.is_floating_point_type and self.a_dtype.is_integer_type:
+            assert self.use_fused_e8m0_scale
             raise NotImplementedError
 
         if self.use_f16_accum:
@@ -395,8 +396,8 @@ class HummingKernel(KernelRuntime, LayerConfig, ComputeConfig, TuningConfig):
                     res += [config[0], config[1], kernel.kernel_id, num_sms]
         else:
             for config in tuning_config_obj:
-                kernel_config, kernel, num_sms = prepare_kernel(config)
-                kernel = HummingKernel(**kernel_config)
+                _, kernel, num_sms = prepare_kernel(config)
+                kernel.load_cubin()
                 res += [config[0], config[1], kernel.kernel_id, num_sms]
 
         cls._str2kernel_cache[cache_key] = res

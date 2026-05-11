@@ -149,7 +149,7 @@ public:
     __syncwarp();
   }
 
-  CUDA_INLINE void init_mbarrir() {
+  CUDA_INLINE void init_mbarrier() {
     if constexpr (kUseMBarrier) {
       uint32_t count;
       if (thread_id < kNumStages) {
@@ -297,7 +297,7 @@ public:
       : smem(smem) {
   }
 
-  CUDA_INLINE void init_mbarrir() {
+  CUDA_INLINE void init_mbarrier() {
   }
 
   template <bool kIsFirst = false>

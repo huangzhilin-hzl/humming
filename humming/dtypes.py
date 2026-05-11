@@ -22,7 +22,7 @@ class DataType:
         if "float" in s:
             return FloatingPointType.from_str(s)
         elif "int" in s:
-            return InergerType.from_str(s)
+            return IntegerType.from_str(s)
         else:
             raise NotImplementedError
 
@@ -31,7 +31,7 @@ class DataType:
         if "float" in str(torch_dtype):
             return FloatingPointType.from_torch_dtype(torch_dtype)
         elif "int" in str(torch_dtype):
-            return InergerType.from_torch_dtype(torch_dtype)
+            return IntegerType.from_torch_dtype(torch_dtype)
         else:
             raise NotImplementedError
 
@@ -55,14 +55,14 @@ class DataType:
 
 
 @dataclasses.dataclass(kw_only=True, repr=False)
-class InergerType(DataType):
+class IntegerType(DataType):
     is_integer_type: bool = True
 
     __hash__ = DataType.__hash__
 
     @classmethod
     def from_str(cls, s):
-        if isinstance(s, InergerType):
+        if isinstance(s, IntegerType):
             return s
         s = s.lower()
         re_res = re.findall("^(u*)int(\\d+)$", s)
@@ -155,7 +155,7 @@ class FloatingPointType(DataType):
         assert isinstance(torch_dtype, torch.dtype)
         dtype_str = str(torch_dtype)[6:]
         # note that fnuz format / packed format / padded format are not supported
-        dtype_str = dtype_str.replace("fn", "").replace("fnu", "")
+        dtype_str = dtype_str.replace("fnu", "").replace("fn", "")
         return cls.from_str(dtype_str)
 
     def id(self):
@@ -167,21 +167,21 @@ class FloatingPointType(DataType):
         return int(dtype_id)
 
 
-uint1 = InergerType.from_str("uint1")
-uint2 = InergerType.from_str("uint2")
-uint3 = InergerType.from_str("uint3")
-uint4 = InergerType.from_str("uint4")
-uint5 = InergerType.from_str("uint5")
-uint6 = InergerType.from_str("uint6")
-uint7 = InergerType.from_str("uint7")
-uint8 = InergerType.from_str("uint8")
+uint1 = IntegerType.from_str("uint1")
+uint2 = IntegerType.from_str("uint2")
+uint3 = IntegerType.from_str("uint3")
+uint4 = IntegerType.from_str("uint4")
+uint5 = IntegerType.from_str("uint5")
+uint6 = IntegerType.from_str("uint6")
+uint7 = IntegerType.from_str("uint7")
+uint8 = IntegerType.from_str("uint8")
 
-int2 = InergerType.from_str("int2")
-int3 = InergerType.from_str("int3")
-int4 = InergerType.from_str("int4")
-int6 = InergerType.from_str("int6")
-int8 = InergerType.from_str("int8")
-int32 = InergerType.from_str("int32")
+int2 = IntegerType.from_str("int2")
+int3 = IntegerType.from_str("int3")
+int4 = IntegerType.from_str("int4")
+int6 = IntegerType.from_str("int6")
+int8 = IntegerType.from_str("int8")
+int32 = IntegerType.from_str("int32")
 
 float4e2m1 = FloatingPointType.from_str("float4e2m1")
 float6e2m3 = FloatingPointType.from_str("float6e2m3")

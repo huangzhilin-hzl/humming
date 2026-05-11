@@ -96,7 +96,7 @@ def generate_random_weight(
         )
 
     if dtype.is_integer_type and dtype.is_signed:
-        dtype = dtypes.InergerType(is_signed=False, num_bits=dtype.num_bits)
+        dtype = dtypes.IntegerType(is_signed=False, num_bits=dtype.num_bits)
 
     weight_orig = torch.randn((e, n, k), dtype=torch.float32, device="cuda:0")
     init_weight_scale = torch.rand((e, n, k // group_size), dtype=torch.float32, device="cuda:0")
@@ -274,7 +274,7 @@ def random_fill_tensor(tensor: torch.Tensor):
 
 
 def save_benchmark_result(result, args, packages: list[str] | None = None):
-    kwargs = vars(args)
+    kwargs = dict(vars(args))
     output_file = kwargs.pop("output_file", None)
     if output_file is None:
         return
@@ -288,7 +288,7 @@ def save_benchmark_result(result, args, packages: list[str] | None = None):
         del kwargs["is_moe_down"]
 
     versions = {}
-    packages = packages or []
+    packages = list(packages or [])
     packages.insert(0, "torch")
     for package in packages:
         versions[package] = importlib.metadata.version(package)

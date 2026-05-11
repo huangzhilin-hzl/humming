@@ -90,7 +90,7 @@ def init_humming_launcher():
             sources=[filename],
             extra_include_paths=list(cuda_env["include_paths"]),
             extra_ldflags=["-lcuda", "-lc10_cuda", "-ltorch_cuda"],
-            extra_cflags=["-O3", f"-DUSE_TORCH_STABLE_API={USE_TORCH_STABLE_API}"],
+            extra_cflags=["-O3", f"-DUSE_TORCH_STABLE_API={int(USE_TORCH_STABLE_API)}"],
             build_directory=build_dir,
         )
 

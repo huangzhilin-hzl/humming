@@ -1,6 +1,6 @@
 #pragma once
 
-#define CEIL_DIV(a, b) ((a + b - 1) / (b))
+#define CEIL_DIV(a, b) (((a) + (b) - 1) / (b))
 
 inline void check_curesult(const CUresult res, const char *func_name) {
   if (res != CUDA_SUCCESS) {

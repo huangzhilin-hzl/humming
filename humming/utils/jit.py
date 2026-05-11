@@ -92,7 +92,7 @@ def get_cuda_command_path(name):
 def get_cuda_nvcc_version(nvcc_path):
     result = subprocess.run([nvcc_path, "--version"], stdout=subprocess.PIPE, text=True).stdout
     re_result = re.findall("release (\\d+\\.\\d+)", result)
-    if re_result is None:
+    if not re_result:
         raise RuntimeError(f"Invalid NVCC: {nvcc_path}")
     return re_result[0]
 
@@ -159,7 +159,7 @@ def hash_path_content(path: str, releative: bool = False, text_only: bool = True
 
 @functools.lru_cache(maxsize=1)
 def get_humming_lock_filename(name: str) -> str:
-    if name.endswith(".lock"):
+    if not name.endswith(".lock"):
         name = name + ".lock"
     lock_dirname = get_humming_lock_dir()
     return os.path.join(lock_dirname, name)

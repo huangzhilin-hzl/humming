@@ -110,7 +110,7 @@ register_op("humming::repack_weight", repack_weight, repack_weight)
 register_op("humming::pack_weight", pack_weight, pack_weight)
 register_op("humming::unpack_weight", unpack_weight, unpack_weight)
 register_op("humming::humming_gemm", humming_gemm, humming_gemm)
-register_op("humming::fused_moe_mul_sum", moe_fused_mul_sum, moe_fused_mul_sum)
+register_op("humming::moe_fused_mul_sum", moe_fused_mul_sum, moe_fused_mul_sum)
 register_op(
     "humming::process_mxfp4_w4a8_weight",
     process_mxfp4_w4a8_weight,

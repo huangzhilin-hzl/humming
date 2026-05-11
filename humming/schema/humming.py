@@ -24,7 +24,7 @@ class HummingWeightSchema(BaseWeightSchema):
         "b_dtype": ["weight_dtype", "dtype"],
         "weight_scale_group_size": ["group_size"],
         "weight_scale_group_size_n": ["group_size_n"],
-        "scale_type": ["weight_scale_type"],
+        "weight_scale_type": ["scale_type"],
         "bs_dtype": ["weight_scale_dtype", "scale_dtype"],
     }
 
@@ -32,7 +32,7 @@ class HummingWeightSchema(BaseWeightSchema):
         assert self.quant_method == "humming"
         if isinstance(self.b_dtype, str):
             self.b_dtype = dtypes.DataType.from_str(str(self.b_dtype))
-        if isinstance(self.b_dtype, dtypes.InergerType) and self.b_dtype.is_signed:
+        if isinstance(self.b_dtype, dtypes.IntegerType) and self.b_dtype.is_signed:
             self.b_dtype = dtypes.DataType.from_str("u" + str(self.b_dtype))
         if isinstance(self.bs_dtype, str):
             self.bs_dtype = dtypes.DataType.from_str(str(self.bs_dtype))
@@ -138,7 +138,7 @@ class HummingWeightSchema(BaseWeightSchema):
 
     @classmethod
     def quant_tensor(
-        self,
+        cls,
         tensor: torch.Tensor,
         schema: "HummingWeightSchema",
         param_dtype: torch.dtype,

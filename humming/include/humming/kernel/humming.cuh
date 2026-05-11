@@ -95,7 +95,7 @@ __global__ __launch_bounds__(TuningConfig::kNumThreads, TuningConfig::kNumCtasPe
   auto consumer = ConsumerPipeline(smem);
   auto s2r_pipe = S2RMemoryPipeline(smem, mma, epilogue);
 
-  producer.init_mbarrir();
+  producer.init_mbarrier();
   __syncthreads();
 
   while (scheduler.get_next_block()) {

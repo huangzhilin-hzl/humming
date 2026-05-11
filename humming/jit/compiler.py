@@ -169,7 +169,7 @@ class NVRTCCompiler(Compiler):
         try:
             from cuda.bindings import nvrtc
         except Exception as e:
-            torch_cuda_version_major = int(torch.version.cuda.split("."))
+            torch_cuda_version_major = int(torch.version.cuda.split(".")[0])
             packages = ["nvidia-cuda-nvrtc", "nvidia-cuda-runtime"]
             if torch_cuda_version_major == 12:
                 packages = [x + "-cu12" for x in packages]
