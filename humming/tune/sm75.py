@@ -18,6 +18,7 @@ class Sm75Heuristics(DeviceHeuristics):
         use_f16_accum: bool,
         use_fused_e8m0_scale: bool,
         gemm_type: GemmType,
+        shape_k: int,
     ):
         if a_dtype.num_bits == 16:
             warp_shape_k = 64 if b_dtype.num_bits <= 3 else 32

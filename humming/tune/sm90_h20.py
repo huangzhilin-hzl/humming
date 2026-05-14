@@ -28,6 +28,7 @@ class Sm90H20Heuristics(DeviceHeuristics):
         use_f16_accum: bool,
         use_fused_e8m0_scale: bool,
         gemm_type: GemmType,
+        shape_k: int,
     ):
         is_moe = gemm_type != GemmType.DENSE
         if a_dtype.num_bits == 16:
@@ -54,7 +55,7 @@ class Sm90H20Heuristics(DeviceHeuristics):
                 "warp_shape": (64, 32, 512 // a_dtype.num_bits),
                 "num_ctas_per_sm": 3,
             }
-        elif group_size >= 128:
+        elif group_size >= 128 and shape_k > 512:
             return {
                 "block_shape": (64, 128, 1024 // a_dtype.num_bits),
                 "warp_shape": (64, 16, 1024 // a_dtype.num_bits),
@@ -86,6 +87,7 @@ class Sm90H20Heuristics(DeviceHeuristics):
             use_f16_accum,
             meta.use_fused_e8m0_scale,
             gemm_type,
+            meta.shape_k,
         )
         block_shape_m, block_shape_n, block_shape_k = config["block_shape"]
         num_ctas_per_sm = config.get("num_ctas_per_sm", 1)
@@ -185,6 +187,11 @@ class Sm90H20Heuristics(DeviceHeuristics):
             smem_size = estimate_smem_size_layer(meta, block_shape, gemm_type, 5)
             if smem_size * num_ctas_per_sm < cls.max_smem_size:
                 config["num_stages"] = 5
+
+        while meta.shape_k % block_shape_k != 0:
+            warp_shape_k = 512 // meta.a_dtype.num_bits
+            block_shape_k = block_shape_k // 2
+            assert block_shape_k >= warp_shape_k
 
         if use_batch_invariant:
             warp_shape_k = 512 // meta.a_dtype.num_bits

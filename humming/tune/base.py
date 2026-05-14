@@ -28,6 +28,7 @@ class DeviceHeuristics:
         use_f16_accum: bool,
         use_fused_e8m0_scale: bool,
         gemm_type: GemmType,
+        shape_k: int,
     ):
         raise NotImplementedError
 
@@ -51,6 +52,7 @@ class DeviceHeuristics:
             use_f16_accum,
             meta.use_fused_e8m0_scale,
             gemm_type,
+            meta.shape_k,
         )
         block_shape_m, block_shape_n, block_shape_k = config["block_shape"]
         warp_shape_m, warp_shape_n, warp_shape_k = config["warp_shape"]

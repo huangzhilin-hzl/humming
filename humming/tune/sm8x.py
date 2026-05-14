@@ -19,6 +19,7 @@ class Sm80Heuristics(DeviceHeuristics):
         use_f16_accum: bool,
         use_fused_e8m0_scale: bool,
         gemm_type: GemmType,
+        shape_k: int,
     ):
         if a_dtype.num_bits == 16 or group_size == 0 and a_dtype == b_dtype:
             if use_f16_accum:
@@ -60,6 +61,7 @@ class Sm86Heuristics(DeviceHeuristics):
         use_f16_accum: bool,
         use_fused_e8m0_scale: bool,
         gemm_type: GemmType,
+        shape_k: int,
     ):
         if a_dtype.num_bits == 16 and use_f16_accum:
             num_stages = 3 if b_dtype.num_bits < 8 else 2
