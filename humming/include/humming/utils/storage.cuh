@@ -138,13 +138,13 @@ public:
 
   union alignas(128) {
     struct {
-      int4 a[kNumStages][kStageSizeA];
-      int4 b[kNumStages][kStageSizeB];
+      alignas(128) int4 a[kNumStages][kStageSizeA];
+      alignas(128) int4 b[kNumStages][kStageSizeB];
       IF_HAS_STAGE_INPUT_SCALE(int4 as[kNumStages][kStageSizeAS];)
-      IF_HAS_STAGE_WEIGHT_SCALE(int4 bs[kNumStages][kStageSizeBS];)
-      IF_HAS_ZERO_POINT(int4 bzp[kIsChannelWeightScale ? 1 : kNumStages][kIsChannelWeightScale ? kChannelSizeBZP : kStageSizeBZP];)
-      IF_HAS_CHANNEL_WEIGHT_SCALE(int4 bs_c[kChannelSizeBS];)
-      IF_HAS_BIAS(int4 bias[kBiasSize];)
+      IF_HAS_STAGE_WEIGHT_SCALE(alignas(128) int4 bs[kNumStages][kStageSizeBS];)
+      IF_HAS_ZERO_POINT(alignas(128) int4 bzp[kIsChannelWeightScale ? 1 : kNumStages][kIsChannelWeightScale ? kChannelSizeBZP : kStageSizeBZP];)
+      IF_HAS_CHANNEL_WEIGHT_SCALE(alignas(128) int4 bs_c[kChannelSizeBS];)
+      IF_HAS_BIAS(alignas(128) int4 bias[kBiasSize];)
       IF_HAS_CHANNEL_INPUT_SCALE(int4 as_c[kChannelSizeAS];)
     };
     int4 reduce[MAX(kWarpReduceSize, kBlockOutputSize)];
