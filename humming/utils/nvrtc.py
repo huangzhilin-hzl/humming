@@ -11,6 +11,16 @@ import humming.utils.jit as jit_utils
 from humming.utils.cuda import filter_cuda_paths
 
 
+def _select_nvrtc_lib(lib_dir):
+    unversioned = os.path.join(lib_dir, "libnvrtc.so")
+    if os.path.exists(unversioned):
+        return unversioned
+    versioned = sorted(glob.glob(os.path.join(lib_dir, "libnvrtc.so.*")))
+    if versioned:
+        return versioned[-1]
+    return None
+
+
 def _find_nvrtc_lib_dir():
     env = filter_cuda_paths(required_headers=["nvrtc.h"])
     root = env["path"]
@@ -21,9 +31,10 @@ def _find_nvrtc_lib_dir():
         *sorted(glob.glob(os.path.join(root, "*", "lib"))),
     ]
     for d in candidates:
-        if glob.glob(os.path.join(d, "libnvrtc.so*")):
-            return d, env
-    return None, env
+        lib_path = _select_nvrtc_lib(d)
+        if lib_path is not None:
+            return d, lib_path, env
+    return None, None, env
 
 
 _cached_binary_path = None
@@ -38,12 +49,17 @@ def may_build_nvrtc_compile_binary():
     src_path = os.path.abspath(src_path)
     src_hash = jit_utils.hash_path_content(src_path, releative=True)
 
-    lib_dir, cuda_env = _find_nvrtc_lib_dir()
+    lib_dir, lib_path, cuda_env = _find_nvrtc_lib_dir()
     if lib_dir is None:
         raise RuntimeError("Could not locate libnvrtc.so in CUDA path")
     include_paths = list(cuda_env["include_paths"])
     env_signature = json.dumps(
-        {"lib_dir": lib_dir, "include_paths": include_paths, "path": cuda_env["path"]},
+        {
+            "lib_dir": lib_dir,
+            "lib_path": lib_path,
+            "include_paths": include_paths,
+            "path": cuda_env["path"],
+        },
         sort_keys=True,
         ensure_ascii=False,
     )
@@ -70,8 +86,7 @@ def may_build_nvrtc_compile_binary():
             "-std=c++17",
             src_path,
             *[f"-I{d}" for d in include_paths],
-            f"-L{lib_dir}",
-            "-lnvrtc",
+            lib_path,
             f"-Wl,-rpath,{lib_dir}",
             "-o",
             tmp_binary.as_posix(),
