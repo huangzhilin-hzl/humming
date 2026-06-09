@@ -503,7 +503,7 @@ class HummingLayerMethod:
         """
         assert isinstance(layer.humming_metas, dict)
         meta = layer.humming_metas[sublayer_name]
-        should_rotate = hadamard_block_size is not None
+        should_rotate = hadamard_block_size is not None and hadamard_block_size > 1
         should_quant = meta.a_dtype.num_bits != 16
 
         # Pre-quantized input was passed in — assume already rotated upstream.

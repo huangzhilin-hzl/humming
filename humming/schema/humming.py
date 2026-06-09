@@ -19,6 +19,7 @@ class HummingWeightSchema(BaseWeightSchema):
     weight_scale_type: WeightScaleType | str | None = None
     has_zero_point: bool = False
     is_fp_zero_point: bool = False
+    hadamard_block_size: int = 0
 
     KWARGS_ALIAS: ClassVar[dict[str, list[str]]] = {
         "b_dtype": ["weight_dtype", "dtype"],
@@ -157,6 +158,10 @@ class HummingWeightSchema(BaseWeightSchema):
         shape_n = tensor.size(-2)
         shape_k = tensor.size(-1)
         num_experts = tensor.size(0) if tensor.ndim == 3 else None
+        if schema.hadamard_block_size > 1:
+            from humming import ops
+
+            tensor = ops.hadamard_transform(tensor, schema.hadamard_block_size)
         tensor_list = quantize_weight(
             weight=tensor,
             dtype=schema.b_dtype,
