@@ -190,12 +190,19 @@ class HummingLayerMethod:
 
     @staticmethod
     def select_kernel_id(configs: list[int], valid_shape_m: int) -> int:
+        def as_int(value: int | torch.Tensor) -> int:
+            if isinstance(value, torch.Tensor):
+                return int(value.item())
+            return int(value)
+
         if len(configs) == 1:
-            return configs[0]
+            return as_int(configs[0])
         for i in range(0, len(configs), 4):
             min_shape_m, max_shape_m, kernel_id, _ = configs[i : i + 4]
+            min_shape_m = as_int(min_shape_m)
+            max_shape_m = as_int(max_shape_m)
             if valid_shape_m > min_shape_m and valid_shape_m <= max_shape_m:
-                return kernel_id
+                return as_int(kernel_id)
         raise ValueError(f"no Humming kernel config found for valid_shape_m={valid_shape_m}")
 
     @classmethod
