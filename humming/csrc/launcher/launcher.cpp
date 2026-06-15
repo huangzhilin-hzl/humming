@@ -72,6 +72,7 @@ Tensor launch_kernel_impl(
     std::optional<Tensor> num_tokens_padded_,
     std::optional<Tensor> expert_layout_,
     std::optional<Tensor> locks_,
+    std::optional<Tensor> streamk_workspace_,
     int64_t top_k,
     int64_t valid_shape_m,
     bool should_check_tensor = true) {
@@ -102,6 +103,7 @@ Tensor launch_kernel_impl(
     check_tensor_bias(bias_, kernel_data, dev);
     check_tensor_gs(gs_, kernel_data, dev);
     check_tensor_locks(locks_, kernel_data, dev);
+    check_tensor_streamk_workspace(streamk_workspace_, dev);
     check_tensor_moe(sorted_ids_, expert_ids_, num_tokens_padded_, expert_layout_, kernel_data, dev);
   }
 
@@ -118,6 +120,7 @@ Tensor launch_kernel_impl(
   void *num_tokens_padded_ptr = num_tokens_padded_.has_value() ? num_tokens_padded_->data_ptr() : nullptr;
   void *expert_layout_ptr = expert_layout_.has_value() ? expert_layout_->data_ptr() : nullptr;
   void *locks_ptr = locks_.has_value() ? locks_->data_ptr() : nullptr;
+  void *streamk_workspace_ptr = streamk_workspace_.has_value() ? streamk_workspace_->data_ptr() : nullptr;
   void *tensor_map_buffer_ptr = tensor_map_buffer.data_ptr();
 
   auto tensor_map_a = make_tma_desc_a(a, kernel_data);
@@ -152,6 +155,7 @@ Tensor launch_kernel_impl(
       &expert_layout_ptr,
       &tensor_map_buffer_ptr,
       &locks_ptr,
+      &streamk_workspace_ptr,
       &shape_m_u32,
       &top_k_u32,
       &use_int64_expert_layout};
@@ -257,6 +261,7 @@ Tensor launch_kernel(
     std::optional<Tensor> num_tokens_padded_,
     std::optional<Tensor> expert_layout_,
     std::optional<Tensor> locks_,
+    std::optional<Tensor> streamk_workspace_,
     int64_t top_k,
     int64_t valid_shape_m,
     bool should_check_tensor = true) {
@@ -266,7 +271,8 @@ Tensor launch_kernel(
   IntArrayRef configs(static_cast<int64_t *>(configs_t.data_ptr()),
                       static_cast<size_t>(configs_t.numel()));
   return launch_kernel_impl(configs, a, b, c_, as_, bs_, bzp_, bias_, gs_, sorted_ids_, expert_ids_,
-                            num_tokens_padded_, expert_layout_, locks_, top_k, valid_shape_m, should_check_tensor);
+                            num_tokens_padded_, expert_layout_, locks_, streamk_workspace_,
+                            top_k, valid_shape_m, should_check_tensor);
 }
 
 COMMON_TORCH_LIBRARY(humming, m) {
@@ -274,7 +280,8 @@ COMMON_TORCH_LIBRARY(humming, m) {
       "launch_kernel(Tensor configs, Tensor a, Tensor b, Tensor? c, "
       "Tensor? as_, Tensor? bs, Tensor? bzp, Tensor? bias, Tensor? gs, "
       "Tensor? sorted_ids, Tensor? expert_ids, Tensor? num_tokens_padded, Tensor? expert_layout, "
-      "Tensor? locks, SymInt top_k, SymInt valid_shape_m, bool should_check_tensor = True) -> Tensor");
+      "Tensor? locks, Tensor? streamk_workspace, SymInt top_k, SymInt valid_shape_m, "
+      "bool should_check_tensor = True) -> Tensor");
   m.def("register_kernel(str cubin_path, str func_name) -> int");
 };
 

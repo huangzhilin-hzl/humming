@@ -20,6 +20,10 @@ private:
   using OutputPtrType = std::conditional_t<TuningConfig::kUseTmaC, const void *, void *>;
 
   static constexpr bool kIsGroupedGemm = ComputeConfig::kGemmType == GemmType::GROUPED_CONTIGUOUS || ComputeConfig::kGemmType == GemmType::GROUPED_MASKED;
+  static constexpr bool kUseFp32StreamKReduce =
+      TuningConfig::kUseStreamK &&
+      ComputeConfig::kGemmType == GemmType::INDEXED &&
+      LayerConfig::kUseFusedE8m0Scale;
   static constexpr uint32_t kNumWriteSplits = TuningConfig::kNumWriteSplits;
 
 public:
@@ -29,6 +33,7 @@ public:
   ArithClass &arith;
   const uint32_t *GS;
   int32_t *locks;
+  float *streamk_workspace;
 
   uint32_t slice_count;
   uint32_t slice_id;
@@ -37,10 +42,10 @@ public:
   CUDA_INLINE
   EpiloguePipeline(
       SharedStorage &smem, OutputPtrType output_ptr, CUtensorMap *tensor_map_buffer, ArithClass &arith,
-      const uint32_t *GS, int32_t *locks, uint32_t output_shape_m, uint32_t top_k)
-      : GS(GS), locks(locks), arith(arith),
+      const uint32_t *GS, int32_t *locks, float *streamk_workspace, uint32_t output_shape_m, uint32_t top_k)
+      : GS(GS), locks(locks), streamk_workspace(streamk_workspace), arith(arith),
         smem_reducer(smem.reduce), smem_writer(smem.reduce, arith),
-        gmem_writer(arith, smem.reduce, output_ptr, smem, output_shape_m, top_k) {
+        gmem_writer(arith, smem.reduce, output_ptr, streamk_workspace, smem, output_shape_m, top_k) {
     if constexpr (TuningConfig::kUseTmaC) {
       if constexpr (kIsGroupedGemm) gmem_writer.update_tensor_map_ptr(tensor_map_buffer + blockIdx.x);
       else if (threadIdx.x == 0) prefetch_tensor_map(output_ptr);
@@ -59,15 +64,32 @@ public:
       static_assert(!TuningConfig::kUseTmaC);
     }
 
-    if (slice_count > 1) acquire_gmem_barrier();
+    bool use_fp32_streamk_reduce = false;
+    if constexpr (kUseFp32StreamKReduce) {
+      use_fp32_streamk_reduce = streamk_workspace != nullptr;
+    }
+
+    if (slice_count > 1) acquire_gmem_barrier(use_fp32_streamk_reduce);
     PRAGMA_UNROLL
     for (uint32_t i = 0; i < kNumWriteSplits; i++) {
-      smem_writer.write(regs_c_ptr, slice_count, i);
-      sync_math_threads();
-      gmem_writer.write(slice_id, slice_count, i);
+      if constexpr (kUseFp32StreamKReduce) {
+        if (use_fp32_streamk_reduce) {
+          smem_writer.write_float(regs_c_ptr, i);
+          sync_math_threads();
+          gmem_writer.write_float_streamk(slice_id, slice_count, i, locks_offset);
+        } else {
+          smem_writer.write(regs_c_ptr, slice_count, i);
+          sync_math_threads();
+          gmem_writer.write(slice_id, slice_count, i);
+        }
+      } else {
+        smem_writer.write(regs_c_ptr, slice_count, i);
+        sync_math_threads();
+        gmem_writer.write(slice_id, slice_count, i);
+      }
       sync_math_threads();
     }
-    if (slice_count > 1) release_gmem_barrier();
+    if (slice_count > 1) release_gmem_barrier(use_fp32_streamk_reduce);
   }
 
   CUDA_INLINE
@@ -76,8 +98,10 @@ public:
   }
 
   CUDA_INLINE
-  void acquire_gmem_barrier() {
-    if (TuningConfig::kUseTmaC || slice_count > 3) {
+  void acquire_gmem_barrier(bool use_fp32_streamk_reduce) {
+    if (use_fp32_streamk_reduce) {
+      barrier_acquire<TuningConfig::kNumMathThreads, TuningConfig::kNumThreads>(&locks[locks_offset], slice_id);
+    } else if (TuningConfig::kUseTmaC || slice_count > 3) {
       int32_t val = slice_id == 0 ? 0 : -1;
       barrier_acquire2<TuningConfig::kNumMathThreads, TuningConfig::kNumThreads>(&locks[locks_offset], val);
     } else {
@@ -86,8 +110,10 @@ public:
   }
 
   CUDA_INLINE
-  void release_gmem_barrier() {
-    if (TuningConfig::kUseTmaC || slice_count > 3) {
+  void release_gmem_barrier(bool use_fp32_streamk_reduce) {
+    if (use_fp32_streamk_reduce) {
+      barrier_release<TuningConfig::kNumMathThreads, TuningConfig::kNumThreads>(&locks[locks_offset], slice_id == slice_count - 1);
+    } else if (TuningConfig::kUseTmaC || slice_count > 3) {
       int32_t val = slice_id == 0 ? 1 - static_cast<int32_t>(slice_count) : 0;
       barrier_release2<TuningConfig::kNumMathThreads, TuningConfig::kNumThreads>(&locks[locks_offset], val);
     } else {

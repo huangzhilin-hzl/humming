@@ -40,6 +40,7 @@ def launch_kernel(
     num_tokens_padded: torch.Tensor | None = None,
     expert_layout: torch.Tensor | None = None,
     locks: torch.Tensor | None = None,
+    streamk_workspace: torch.Tensor | None = None,
     top_k: int = 1,
     valid_shape_m: int = 0,
 ) -> torch.Tensor:
@@ -60,6 +61,7 @@ def launch_kernel(
         num_tokens_padded,
         expert_layout,
         locks,
+        streamk_workspace,
         top_k,
         valid_shape_m,
     )
@@ -82,6 +84,7 @@ def humming_gemm(
     num_tokens_padded: torch.Tensor | None = None,
     expert_layout: torch.Tensor | None = None,
     locks: torch.Tensor | None = None,
+    streamk_workspace: torch.Tensor | None = None,
     top_k: int = 1,
     valid_shape_m: int = 0,
 ) -> torch.Tensor:
@@ -101,6 +104,7 @@ def humming_gemm(
         num_tokens_padded,
         expert_layout,
         locks,
+        streamk_workspace,
         top_k,
         valid_shape_m,
     )
@@ -123,6 +127,7 @@ def _humming_gemm_fake(
     num_tokens_padded: torch.Tensor | None = None,
     expert_layout: torch.Tensor | None = None,
     locks: torch.Tensor | None = None,
+    streamk_workspace: torch.Tensor | None = None,
     top_k: int = 1,
     valid_shape_m: int = 0,
 ) -> torch.Tensor:

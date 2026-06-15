@@ -98,6 +98,7 @@ public:
   static constexpr uint32_t M_WARPS = (BlockShape::M / WarpShape::M);
   static constexpr uint32_t kWarpReduceSize = M_WARPS * 16 * BlockShape::N * kMmaCTypeBits / 128 * (kNumWarpsDimK / 2);
   static constexpr uint32_t kBlockOutputSize = BlockShape::M * BlockShape::N / 2 / 4 / kNumWriteSplits;
+  static constexpr uint32_t kBlockOutputFp32Size = BlockShape::M * BlockShape::N / 4 / kNumWriteSplits;
   static constexpr uint32_t kNumZPBits = kIsFpZeroPoint ? 16 : MAX(4, static_next_power_of_2(ElementB::kBits));
 
   static constexpr uint32_t kSmemStrideA = BlockShape::K * ElementA::kBits / 32 / 4;
@@ -158,7 +159,7 @@ public:
       IF_HAS_BIAS(alignas(128) int4 bias[kBiasSize];)
       IF_HAS_CHANNEL_INPUT_SCALE(int4 as_c[kChannelSizeAS];)
     };
-    int4 reduce[MAX(kWarpReduceSize, kBlockOutputSize)];
+    int4 reduce[MAX(MAX(kWarpReduceSize, kBlockOutputSize), kBlockOutputFp32Size)];
   };
 
   IF_IS_INDEXED_GEMM(uint32_t rd_row_index[BlockShape::M];)

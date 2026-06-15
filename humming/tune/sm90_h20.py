@@ -240,6 +240,8 @@ class Sm90H20Heuristics(DeviceHeuristics):
             warp_shape_k = 512 // meta.a_dtype.num_bits
             block_shape_k = 512 // meta.a_dtype.num_bits
             # TODO: check if TMA / cp.async affect batch invariance
+            config["block_shape"] = (block_shape_m, block_shape_n, block_shape_k)
+            config["warp_shape"] = (warp_shape_m, warp_shape_n, warp_shape_k)
             config["use_tma"] = False
             config["use_warp_spec"] = False
             config["use_mbarrier"] = False

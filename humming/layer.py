@@ -161,10 +161,12 @@ class HummingModule(torch.nn.Module):
     humming_kernel_config_modules: dict[str, Callable]
     humming_metas: dict[str, HummingLayerMeta]
     locks: torch.Tensor | None
+    streamk_workspace: torch.Tensor | None
 
 
 class HummingLayerMethod:
     completed_layer_configs: set[tuple[HummingLayerMeta, tuple[str, ...]]] = set()
+    streamk_workspaces: dict[tuple[str, int | None], torch.Tensor] = {}
 
     @classmethod
     def may_set_param(cls, layer: torch.nn.Module, name: str, tensor: torch.Tensor | None):
@@ -172,6 +174,29 @@ class HummingLayerMethod:
             return
         param = torch.nn.Parameter(tensor, requires_grad=False)
         setattr(layer, name, param)
+
+    @classmethod
+    def get_streamk_workspace(
+        cls,
+        device: torch.device,
+        numel: int,
+    ) -> torch.Tensor:
+        key = (device.type, device.index)
+        workspace = cls.streamk_workspaces.get(key)
+        if workspace is None or workspace.numel() < numel:
+            workspace = torch.empty((numel,), dtype=torch.float32, device=device)
+            cls.streamk_workspaces[key] = workspace
+        return workspace
+
+    @staticmethod
+    def select_kernel_id(configs: list[int], valid_shape_m: int) -> int:
+        if len(configs) == 1:
+            return configs[0]
+        for i in range(0, len(configs), 4):
+            min_shape_m, max_shape_m, kernel_id, _ = configs[i : i + 4]
+            if valid_shape_m > min_shape_m and valid_shape_m <= max_shape_m:
+                return kernel_id
+        raise ValueError(f"no Humming kernel config found for valid_shape_m={valid_shape_m}")
 
     @classmethod
     def prepare_layer_meta(
@@ -578,10 +603,26 @@ class HummingLayerMethod:
         if isinstance(tuning_config, (list, dict)):
             tuning_config = json.dumps(tuning_config)
 
-        return ops.humming_gemm(
-            layer_config=meta.to_str(),
-            compute_config=compute_config,
-            tuning_config=tuning_config,
+        from humming.kernel.humming import HummingKernel
+
+        launch_configs = HummingKernel.prepare_kernels(
+            meta.to_str(),
+            compute_config,
+            tuning_config,
+        )
+        if isinstance(launch_configs, int):
+            launch_configs = [launch_configs]
+
+        streamk_workspace = None
+        if meta.use_fused_e8m0_scale and sorted_ids is not None:
+            output_shape_m = valid_shape_m if valid_shape_m > 0 else inputs.size(0) * top_k
+            kernel_id = cls.select_kernel_id(launch_configs, output_shape_m)
+            kernel = HummingKernel._id2kernel[kernel_id]
+            workspace_numel = layer.locks.numel() * kernel.block_shape[0] * kernel.block_shape[1]
+            streamk_workspace = cls.get_streamk_workspace(inputs.device, workspace_numel)
+
+        return ops.launch_kernel(
+            configs=launch_configs,
             inputs=inputs,
             weight=getattr(layer, meta.weight_name),
             outputs=outputs,
@@ -595,6 +636,7 @@ class HummingLayerMethod:
             num_tokens_padded=num_tokens_padded,
             expert_layout=expert_layout,
             locks=layer.locks,
+            streamk_workspace=streamk_workspace,
             top_k=top_k,
             valid_shape_m=valid_shape_m,
         )
@@ -663,6 +705,8 @@ class HummingLayer(HummingModule):
 
         locks = torch.zeros((1024), dtype=torch.int32, device=torch.cuda.current_device())
         self.register_buffer("locks", locks)
+        streamk_workspace = torch.empty((0,), dtype=torch.float32, device=torch.cuda.current_device())
+        self.register_buffer("streamk_workspace", streamk_workspace)
 
     @staticmethod
     def filter_tensors(

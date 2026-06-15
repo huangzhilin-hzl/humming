@@ -42,6 +42,7 @@ __global__ __launch_bounds__(TuningConfig::kNumThreads, TuningConfig::kNumCtasPe
     const uint32_t *expert_layout_ptr,
     CUtensorMap *tensor_map_buffer,
     int32_t *locks,
+    float *streamk_workspace,
     uint32_t shape_m,
     uint32_t top_k,
     bool use_int64_expert_layout) {
@@ -90,7 +91,7 @@ __global__ __launch_bounds__(TuningConfig::kNumThreads, TuningConfig::kNumCtasPe
   auto mainloop_arith = MainloopArithmetic();
   auto epilogue_arith = EpilogueArithmetic();
   auto mma = MMA(smem, mainloop_arith);
-  auto epilogue = Epilogue(smem, pc(), tensor_map_buffer, epilogue_arith, GS, locks, shape_m, top_k);
+  auto epilogue = Epilogue(smem, pc(), tensor_map_buffer, epilogue_arith, GS, locks, streamk_workspace, shape_m, top_k);
   auto producer = ProducerPipeline(smem, pa(), pb(), pas(), pbs(), pbzp(), pbias(), shape_m);
   auto consumer = ConsumerPipeline(smem);
   auto s2r_pipe = S2RMemoryPipeline(smem, mma, epilogue);
