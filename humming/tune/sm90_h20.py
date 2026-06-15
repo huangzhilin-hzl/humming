@@ -198,10 +198,17 @@ class Sm90H20Heuristics(DeviceHeuristics):
             block_shape_k = block_shape_k // 2
             assert block_shape_k >= warp_shape_k
 
+        use_stream_k = meta.shape_k > 1024
+        if meta.use_fused_e8m0_scale and gemm_type == GemmType.INDEXED and shape_m >= 2048:
+            # FP32 StreamK reduction fixes the indexed MXFP4A8 precision issue, but
+            # its extra workspace traffic loses to the regular split-free path once
+            # the routed M is large enough to keep H20 occupied.
+            use_stream_k = False
+
         config = {
             "block_shape": (block_shape_m, block_shape_n, block_shape_k),
             "warp_shape": (warp_shape_m, warp_shape_n, warp_shape_k),
-            "use_stream_k": meta.shape_k > 1024,
+            "use_stream_k": use_stream_k,
             "use_f16_accum": use_f16_accum,
             "num_sms": num_sms,
             "num_stages": num_stages,
