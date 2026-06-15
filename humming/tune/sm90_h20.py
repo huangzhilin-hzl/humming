@@ -199,11 +199,28 @@ class Sm90H20Heuristics(DeviceHeuristics):
             assert block_shape_k >= warp_shape_k
 
         use_stream_k = meta.shape_k > 1024
-        if meta.use_fused_e8m0_scale and gemm_type == GemmType.INDEXED and shape_m >= 2048:
+        keep_indexed_mxfp4_no_streamk_stages = False
+        if meta.use_fused_e8m0_scale and gemm_type == GemmType.INDEXED and meta.shape_k > 1024:
             # FP32 StreamK reduction fixes the indexed MXFP4A8 precision issue, but
-            # its extra workspace traffic loses to the regular split-free path once
-            # the routed M is large enough to keep H20 occupied.
+            # its extra workspace traffic loses to the split-free path on H20 for
+            # the small routed-M serving shapes that originally exposed the bug.
             use_stream_k = False
+            block_shape_k = 1024 // meta.a_dtype.num_bits
+            warp_shape_k = block_shape_k
+            if shape_m <= 1024:
+                block_shape_m = 32
+                warp_shape_m = 32
+                num_ctas_per_sm = 4
+                num_stages = 4
+            elif shape_m <= 2048:
+                block_shape_m = 32
+                warp_shape_m = 32
+                # This routed-M bucket is tile-count limited; a wider grid keeps
+                # the split-free path ahead of the old BF16 StreamK baseline.
+                num_sms = 104
+                num_ctas_per_sm = 5
+                num_stages = 3
+            keep_indexed_mxfp4_no_streamk_stages = shape_m <= 2048
 
         config = {
             "block_shape": (block_shape_m, block_shape_n, block_shape_k),
@@ -237,7 +254,11 @@ class Sm90H20Heuristics(DeviceHeuristics):
             config["use_warp_spec"] = True
             config["use_mbarrier"] = True
             config["num_stages"] = 3
-        elif config["num_stages"] == 4 and block_shape_m <= 32:
+        elif (
+            config["num_stages"] == 4
+            and block_shape_m <= 32
+            and not keep_indexed_mxfp4_no_streamk_stages
+        ):
             block_shape = (block_shape_m, block_shape_n, block_shape_k)
             smem_size = estimate_smem_size_layer(meta, block_shape, gemm_type, 5)
             if smem_size * num_ctas_per_sm < cls.max_smem_size:

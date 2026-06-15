@@ -1,3 +1,4 @@
+import copy
 import json
 import math
 
@@ -148,7 +149,11 @@ def test_h20_indexed_w4a8_streamk_uses_fp32_reduction():
         gemm_type=GemmType.INDEXED,
     )
     selected_large_config = _select_config(tuning_configs, large_m * top_k)
-    assert selected_large_config["use_stream_k"] is True
+    # The production H20 heuristic may choose non-StreamK for speed; keep this
+    # regression pinned to the FP32 StreamK reduction path.
+    selected_large_config = copy.deepcopy(selected_large_config)
+    selected_large_config["use_stream_k"] = True
+    tuning_configs = [(0, 1 << 30, selected_large_config)]
 
     small_inputs = _make_inputs(small_m, shape_k, device, seed=200)
     small_topk_ids = _make_topk_ids(small_m, num_experts, top_k, device, seed=300)
