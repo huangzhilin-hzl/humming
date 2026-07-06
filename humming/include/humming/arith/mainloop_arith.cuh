@@ -7,37 +7,41 @@
 #include <humming/utils/all.cuh>
 
 
-template <
-    class MmaOpClass,
-    class BlockShape, class WarpShape,
-    class ElementA, class ElementB, class ElementC, class ElementBS,
-    class LayerConfig>
-class MainloopArithmetic : F16Conversion<ElementC> {
+template <class Ctx>
+class MainloopArithmetic : F16Conversion<typename Ctx::ElementC> {
 private:
+  using MmaOpClass = typename Ctx::MmaOpClass;
+  using BlockShape = typename Ctx::BlockShape;
+  using WarpShape = typename Ctx::WarpShape;
+  using ElementA = typename Ctx::ElementA;
+  using ElementB = typename Ctx::ElementB;
+  using ElementC = typename Ctx::ElementC;
+  using ElementBS = typename Ctx::ElementBS;
+
   using scalar_t = typename F16Conversion<ElementC>::scalar_t;
   using scalar_t2 = typename F16Conversion<ElementC>::scalar_t2;
   using ValTypeC = typename MmaOpClass::ValTypeC;
   using MmaShape = typename MmaOpClass::MmaShape;
 
-  static constexpr bool kUseWgmma = MmaOpClass::kMmaType == MmaType::WGMMA;
+  static constexpr bool kUseWgmma = Ctx::kUseWgmma;
   static constexpr bool kIsF16Accum = MmaOpClass::kCTypeBits == 16;
   static constexpr uint32_t kPartMmaShapeK = 256 / ElementA::kBits;
 
   static constexpr bool kHasInputScale = ElementA::kBits != 16;
-  static constexpr bool kIsGroupInputScale = kHasInputScale && LayerConfig::kInputScaleGroupSize > 0;
-  static constexpr bool kIsGroupWeightScale = LayerConfig::kIsGroupWeightScale;
-  static constexpr bool kIsBlockWeightScale = LayerConfig::kIsBlockWeightScale;
-  static constexpr bool kIsChannelWeightScale = LayerConfig::kIsChannelWeightScale;
-  static constexpr bool kIsTensorWeightScale = LayerConfig::kIsTensorWeightScale;
+  static constexpr bool kIsGroupInputScale = kHasInputScale && Ctx::kInputScaleGroupSize > 0;
+  static constexpr bool kIsGroupWeightScale = Ctx::kIsGroupWeightScale;
+  static constexpr bool kIsBlockWeightScale = Ctx::kIsBlockWeightScale;
+  static constexpr bool kIsChannelWeightScale = Ctx::kIsChannelWeightScale;
+  static constexpr bool kIsTensorWeightScale = Ctx::kIsTensorWeightScale;
   static constexpr bool kIsGroupOrBlockWeightScale = kIsGroupWeightScale || kIsBlockWeightScale;
 
-  static constexpr bool kHasZeroPoint = LayerConfig::kHasZeroPoint;
-  static constexpr bool kIsFpZeroPoint = LayerConfig::kIsFpZeroPoint;
-  static constexpr bool kUseIntWeightScale = LayerConfig::kUseIntWeightScale;
-  static constexpr bool kUseFusedE8m0Scale = LayerConfig::kUseFusedE8m0Scale;
+  static constexpr bool kHasZeroPoint = Ctx::kHasZeroPoint;
+  static constexpr bool kIsFpZeroPoint = Ctx::kIsFpZeroPoint;
+  static constexpr bool kUseIntWeightScale = Ctx::kUseIntWeightScale;
+  static constexpr bool kUseFusedE8m0Scale = Ctx::kUseFusedE8m0Scale;
 
-  static constexpr uint32_t kInputScaleGroupSize = kIsGroupInputScale ? LayerConfig::kInputScaleGroupSize : 1;
-  static constexpr uint32_t kWeightScaleGroupSize = kIsGroupOrBlockWeightScale ? LayerConfig::kWeightScaleGroupSize : 1;
+  static constexpr uint32_t kInputScaleGroupSize = kIsGroupInputScale ? Ctx::kInputScaleGroupSize : 1;
+  static constexpr uint32_t kWeightScaleGroupSize = kIsGroupOrBlockWeightScale ? Ctx::kWeightScaleGroupSize : 1;
   static constexpr uint2 kExpOffset = get_mainloop_exp_offset<
       ElementA, ElementB, ElementBS, kHasZeroPoint,
       kIsF16Accum, kIsGroupInputScale, kIsGroupOrBlockWeightScale>();
@@ -92,7 +96,7 @@ public:
     if (j == 0) {
       if constexpr (ElementA::kBits == 16 && kIsBlockWeightScale) {
         scalar_t2 *dq_bs_scalar2_ptr = reinterpret_cast<scalar_t2 *>(dq_bs);
-        float bs_float = reinterpret_cast<float*>(bs[buffer_id])[0];
+        float bs_float = reinterpret_cast<float *>(bs[buffer_id])[0];
         dq_bs_scalar2_ptr[0] = this->float2num2(bs_float);
       }
     }
@@ -181,18 +185,17 @@ public:
         PRAGMA_UNROLL
         for (uint32_t k = 0; k < 2; k++) {
           if constexpr (kIsFpZeroPoint) {
-            scalar_t2 bzp_single = bzp_f16_ptr[MmaOpClass::kMmaType == MmaType::WGMMA ? k : i];
+            scalar_t2 bzp_single = bzp_f16_ptr[kUseWgmma ? k : i];
             b_f16_ptr[i * 2 + k] = __hsub2(b_f16_ptr[i * 2 + k], bzp_single);
           }
           if constexpr (kIsGroupWeightScale) {
-            scalar_t2 bs_single = bs_f16_ptr[MmaOpClass::kMmaType == MmaType::WGMMA ? k : i];
+            scalar_t2 bs_single = bs_f16_ptr[kUseWgmma ? k : i];
             b_f16_ptr[i * 2 + k] = __hmul2(b_f16_ptr[i * 2 + k], bs_single);
           }
           if constexpr (kIsBlockWeightScale) {
-            scalar_t2 bs_single = reinterpret_cast<scalar_t2*>(dq_bs)[0];
+            scalar_t2 bs_single = reinterpret_cast<scalar_t2 *>(dq_bs)[0];
             b_f16_ptr[i * 2 + k] = __hmul2(b_f16_ptr[i * 2 + k], bs_single);
           }
-
         };
       };
     };
@@ -200,10 +203,9 @@ public:
 
   CUDA_INLINE
   void may_process_as_and_bs_before_apply_on_c(uint32_t m, uint32_t n, uint32_t k, uint32_t iter_id) {
-    constexpr uint32_t kWarpItersK = WarpShape::K / kPartMmaShapeK;
     uint32_t buffer_id = iter_id % 2;
     uint32_t k_index = iter_id * kPartMmaShapeK + (k + 1) * MmaShape::K;
-    uint32_t is_last_iter = iter_id == (kWarpItersK - 1);
+    uint32_t is_last_iter = iter_id == (Ctx::kWarpIters - 1);
     uint32_t is_as_group_end = kIsGroupInputScale && k_index % kInputScaleGroupSize == 0;
     constexpr bool kProcessGroupWeightScale = kIsGroupWeightScale && !kUseFusedE8m0Scale;
     constexpr bool kProcessBlockWeightScale = kIsBlockWeightScale && !kUseFusedE8m0Scale;
@@ -324,10 +326,9 @@ public:
 
     may_process_as_and_bs_before_apply_on_c(m, n, k, iter_id);
 
-    constexpr uint32_t kWarpItersK = WarpShape::K / kPartMmaShapeK;
     uint32_t buffer_id = iter_id % 2;
     uint32_t k_index = iter_id * kPartMmaShapeK + (k + 1) * MmaShape::K;
-    uint32_t is_last_iter = iter_id == (kWarpItersK - 1);
+    uint32_t is_last_iter = iter_id == (Ctx::kWarpIters - 1);
     uint32_t is_as_group_end = kApplyGroupInputScaleOnC && k_index % kInputScaleGroupSize == 0;
     uint32_t is_bs_group_end = (kApplyGroupWeightScaleOnC || kApplyBlockWeightScaleOnC) && k_index % kWeightScaleGroupSize == 0;
 
@@ -428,10 +429,9 @@ public:
 
     may_process_as_and_bs_before_apply_on_c(m, 0, k, iter_id);
 
-    constexpr uint32_t kWarpItersK = WarpShape::K / kPartMmaShapeK;
     uint32_t buffer_id = iter_id % 2;
     uint32_t k_index = iter_id * kPartMmaShapeK + (k + 1) * MmaShape::K;
-    uint32_t is_last_iter = iter_id == (kWarpItersK - 1);
+    uint32_t is_last_iter = iter_id == (Ctx::kWarpIters - 1);
     uint32_t is_as_group_end = kApplyGroupInputScaleOnC && k_index % kInputScaleGroupSize == 0;
     uint32_t is_bs_group_end = (kApplyGroupWeightScaleOnC || kApplyBlockWeightScaleOnC) && k_index % kWeightScaleGroupSize == 0;
 

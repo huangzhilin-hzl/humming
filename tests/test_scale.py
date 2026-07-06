@@ -274,7 +274,6 @@ def test_global_scale(
         weight_ref = weight_ref.to(torch_dtype).float()
 
     outputs_ref = inputs_ref.matmul(weight_ref.T).to(torch_dtype)
-    torch.save((outputs, outputs_ref), "aa.pt")
     torch.testing.assert_close(outputs, outputs_ref, rtol=0.05, atol=0.5)
 
 
@@ -397,7 +396,6 @@ def test_int_weight_scale(
         weight_ref = weight_ref.to(torch_dtype).float()
 
     outputs_ref = inputs_ref.matmul(weight_ref.T).to(torch_dtype)
-    torch.save((outputs, outputs_ref), "aa.pt")
     torch.testing.assert_close(outputs, outputs_ref, rtol=0.05, atol=0.5)
 
 

@@ -15,19 +15,12 @@
 #include <humming/datatype/dequant.cuh>
 
 
-template <bool kUseTma>
-class KernelTensorParamType {
-public:
-  using Type = std::conditional_t<kUseTma, CUtensorMap const, void *const>;
-};
-
-
 template <class MmaOpClass, uint32_t kRepeatCount, uint32_t kUnrollCount>
 __global__ void tops_bench(uint32_t *out_ptr) {
 
   typename MmaOpClass::CRegisters regs_c;
 
-  if constexpr (MmaOpClass::kMmaType == MmaType::WGMMA) {
+  if constexpr (Ctx::kUseWgmma) {
     typename MmaOpClass::BRegisters regs_b;
     __shared__ alignas(1024) int4 smem[2048];
     uint64_t desc = make_wgmma_smem_desc<128>(cast_smem_ptr_to_uint(smem));
