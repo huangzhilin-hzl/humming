@@ -21,7 +21,7 @@ HummingKernel configurations are divided into three categories:
 | `weight_scale_group_size` | For groupwise or blockwise, this specifies the quantization group size along the K dimension. Ignored for channelwise or tensorwise. |
 | `weight_scale_group_size_n` | Only used for blockwise quantization. Specifies the quantization group size along the N dimension. |
 | `use_int_weight_scale` | Whether to use integer-type scale. Only applicable for INT8 or INT4 activations with `weight_scale_group_size > 0`. Used to accelerate computation in certain cases. The weight scale must be preprocessed as follows: |
-| `use_nvfp4_w4a8` | Enables SM90 NVFP4 W4A8 promotion: E2M1 weights with E4M3 K16 scales are promoted to E4M3 before FP8 WGMMA. Auto-detected for the supported configuration. |
+| `use_nvfp4_w4a8` | Enables SM90 NVFP4 W4A8 promotion: E2M1 weights with finite, non-negative E4M3 K16 scales are promoted to E4M3 before FP8 WGMMA. Auto-detected for the supported configuration. Humming packs the BF16 promotion residual and BF16 K32 coarse factor into one FP32 kernel-scale slot. |
 | `has_zero_point` | Whether to enable zero point. When enabled, the dequantization changes from `x * scale` to `(x - zp) * scale`. Humming supports two zero point types (see below). |
 | `is_fp_zero_point` | Whether to use FP-type zero point. See `has_zero_point` for details. |
 | `has_bias` | Whether to use fused bias addition. |

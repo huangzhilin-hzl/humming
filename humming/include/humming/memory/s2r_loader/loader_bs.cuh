@@ -93,12 +93,17 @@ public:
     uint32_t lane_id = ctx.lane_id();
     uint32_t n_warp_id = ctx.n_warp_id();
 
-    using LoadType = typename LoadTypeChooser<WarpShape::N / 8 * ElementBS::kBits / 8>::Type;
+    constexpr uint32_t kScaleBytesPerGroup = WarpShape::N / 8 * ElementBS::kBits / 8;
+    using LoadType = typename LoadTypeChooser<kScaleBytesPerGroup>::Type;
+    constexpr uint32_t kLoadsPerScaleGroup = kScaleBytesPerGroup / sizeof(LoadType);
     constexpr uint32_t kNumWarpsPerPackBlock = 64 / WarpShape::N;
     constexpr uint32_t kPackBlockSize = 64 * ElementBS::kBits / 8 / sizeof(LoadType);
     uint32_t pack_block_id = n_warp_id / kNumWarpsPerPackBlock;
 
-    uint32_t s_sh_rd = (lane_id / 4) * kNumWarpsPerPackBlock + n_warp_id % kNumWarpsPerPackBlock + pack_block_id * kPackBlockSize;
+    uint32_t logical_slot =
+        (lane_id / 4) * kNumWarpsPerPackBlock + n_warp_id % kNumWarpsPerPackBlock;
+    uint32_t s_sh_rd =
+        logical_slot * kLoadsPerScaleGroup + pack_block_id * kPackBlockSize;
 
     if constexpr (kGroupSize < BlockShape::K) {
       uint32_t k_index = ctx.k_warp_offset() + iter_id * kPartMmaShapeK;
@@ -109,16 +114,13 @@ public:
     const LoadType *smem_ptr_load = reinterpret_cast<const LoadType *>(smem_ptr);
     LoadType *reg_ptr_load = reinterpret_cast<LoadType *>(regs_ptr);
     constexpr uint32_t kScaleGroupsPerMma = kUseNvfp4W4A8 ? 2 : 1;
-    constexpr uint32_t kScaleBytesPerGroup = WarpShape::N / 8 * ElementBS::kBits / 8;
-    constexpr uint32_t kLoadsPerScaleGroup = kScaleBytesPerGroup / sizeof(LoadType);
     constexpr uint32_t kGroupStride = kSmemStride * 16 / sizeof(LoadType);
     PRAGMA_UNROLL
     for (uint32_t group = 0; group < kScaleGroupsPerMma; group++) {
       PRAGMA_UNROLL
       for (uint32_t load = 0; load < kLoadsPerScaleGroup; load++) {
-        constexpr uint32_t kLoadStride = kPackBlockSize / kLoadsPerScaleGroup;
         reg_ptr_load[group * kLoadsPerScaleGroup + load] =
-            smem_ptr_load[s_sh_rd + group * kGroupStride + load * kLoadStride];
+            smem_ptr_load[s_sh_rd + group * kGroupStride + load];
       }
     }
   }

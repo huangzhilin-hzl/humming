@@ -93,10 +93,10 @@ CUDA_INLINE void dequant_nvfp4_w4a8(
   const uint32_t packed0 = packed_weight[fragment_index * 2];
   const uint32_t packed1 = packed_weight[fragment_index * 2 + 1];
 
-  // Match dequant_b1248's WGMMA fragment order: high-N row, low-N row,
-  // followed by the corresponding pair for the second K16 scale group.
-  promoted_weight[0] = promote_nvfp4_nibbles(packed0, residual01, true);
+  // Each packed word holds one N row: low nibbles are the first K16 group and
+  // high nibbles are the second. Match dequant_b1248's high/low output order.
+  promoted_weight[0] = promote_nvfp4_nibbles(packed0, residual10, true);
   promoted_weight[1] = promote_nvfp4_nibbles(packed0, residual00, false);
   promoted_weight[2] = promote_nvfp4_nibbles(packed1, residual11, true);
-  promoted_weight[3] = promote_nvfp4_nibbles(packed1, residual10, false);
+  promoted_weight[3] = promote_nvfp4_nibbles(packed1, residual01, false);
 }

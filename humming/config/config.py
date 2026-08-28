@@ -280,6 +280,10 @@ class LayerConfig(BaseHummingConfig):
         if type(self) is LayerConfig:
             self._config_str = self.to_str()
 
+    def check_sm_version(self, sm_version: int) -> None:
+        if self.use_nvfp4_w4a8:
+            assert sm_version == 90, f"NVFP4 W4A8 promotion requires SM90, got SM{sm_version}"
+
     def _update_weight_scale_flags(self):
         self.is_group_weight_scale = self.weight_scale_type == WeightScaleType.GROUP
         self.is_block_weight_scale = self.weight_scale_type == WeightScaleType.BLOCK

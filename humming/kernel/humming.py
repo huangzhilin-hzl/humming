@@ -363,6 +363,7 @@ class HummingKernel(KernelRuntime, LayerConfig, ComputeConfig, TuningConfig):
             assert self.is_group_weight_scale
 
     def check_dtype(self):
+        self.check_sm_version(self.sm_version)
         dtype_map = {
             dtypes.int4: 80,
             dtypes.int8: 75,

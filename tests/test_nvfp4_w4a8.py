@@ -1,9 +1,15 @@
+import re
+from pathlib import Path
+
+import pytest
 import torch
 
 from humming import dtypes
 from humming.config import LayerConfig, MmaType, WeightScale2Type
 from humming.transform import process_nvfp4_w4a8_scale
 from humming.tune.candidate import get_problem_rejection_reasons
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _layer(**updates) -> LayerConfig:
@@ -49,6 +55,66 @@ def test_nvfp4_scale_factorization_preserves_effective_scale():
     assert packed_scale.dtype == torch.float32
     assert (residual.float().abs() * 0.5 <= 448).all()
     torch.testing.assert_close(coarse_scale[..., ::2], coarse_scale[..., 1::2])
+
+
+@pytest.mark.parametrize(
+    ("weight_scale", "error"),
+    [
+        (torch.tensor([[float("nan"), 1.0]]), "finite"),
+        (torch.tensor([[float("inf"), 1.0]]), "finite"),
+        (torch.tensor([[-1.0, 1.0]]), "non-negative"),
+        (torch.tensor([[-0.0, 1.0]]), "negative zero"),
+    ],
+)
+def test_nvfp4_scale_factorization_rejects_invalid_scales(weight_scale, error):
+    with pytest.raises(ValueError, match=error):
+        process_nvfp4_w4a8_scale(weight_scale)
+
+
+def test_nvfp4_decoder_residuals_match_repacked_n_and_k_layout():
+    source = (REPO_ROOT / "humming/include/humming/datatype/nvfp4_w4a8.cuh").read_text()
+    assignments = re.findall(
+        r"promoted_weight\[(\d)\] = promote_nvfp4_nibbles\(packed(\d), residual(\d+), (true|false)\)",
+        source,
+    )
+
+    # Repack emits one word per N row; low/high nibbles select K0/K16.
+    assert assignments == [
+        ("0", "0", "10", "true"),
+        ("1", "0", "00", "false"),
+        ("2", "1", "11", "true"),
+        ("3", "1", "01", "false"),
+    ]
+
+
+def test_nvfp4_warp_n64_scale_loader_reads_contiguous_vectors():
+    source = (REPO_ROOT / "humming/include/humming/memory/s2r_loader/loader_bs.cuh").read_text()
+    layout1 = source.split("void load_layout1", 1)[1].split("void load_layout2", 1)[0]
+
+    assert "logical_slot * kLoadsPerScaleGroup + pack_block_id * kPackBlockSize" in layout1
+    assert "smem_ptr_load[s_sh_rd + group * kGroupStride + load]" in layout1
+
+    # Warp-N=64 with FP32 scales uses two uint4 loads per lane quartet.
+    logical_slots = range(8)
+    assert [(slot * 2, slot * 2 + 1) for slot in logical_slots] == [
+        (0, 1),
+        (2, 3),
+        (4, 5),
+        (6, 7),
+        (8, 9),
+        (10, 11),
+        (12, 13),
+        (14, 15),
+    ]
+
+
+def test_nvfp4_w4a8_requires_sm90():
+    config = _layer()
+
+    config.check_sm_version(90)
+    for unsupported_sm in (89, 100):
+        with pytest.raises(AssertionError, match="requires SM90"):
+            config.check_sm_version(unsupported_sm)
 
 
 def test_nvfp4_k16_weight_scale_is_legal_for_fp8_wgmma():

@@ -248,6 +248,10 @@ def process_nvfp4_w4a8_scale(
     assert weight_scale.shape[-1] % scales_per_promotion_group == 0
 
     scale_fp32 = weight_scale.float()
+    if not torch.isfinite(scale_fp32).all().item():
+        raise ValueError("NVFP4 W4A8 weight scales must be finite")
+    if (scale_fp32 < 0).any().item() or torch.signbit(scale_fp32).any().item():
+        raise ValueError("NVFP4 W4A8 weight scales must be non-negative and cannot contain negative zero")
     fp4_abs_max = 6.0
     fp8_e4m3_abs_max = 448.0
     rounding_margin = 1.0 + 2.0**-7
