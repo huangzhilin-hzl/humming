@@ -33,7 +33,7 @@ def _stage_storage_bytes(layer_config: LayerConfig, block_shape, is_mxmma: bool)
     block_m, block_n, block_k = block_shape
     a_bits = layer_config.a_dtype.num_bits
     b_bits = layer_config.b_dtype.num_bits
-    bs_bits = (layer_config.bs_dtype or layer_config.c_dtype).num_bits
+    bs_bits = layer_config.kernel_bs_dtype.num_bits
 
     has_input_scale = a_bits != 16
     is_group_input_scale = has_input_scale and layer_config.input_scale_group_size > 0
@@ -87,7 +87,7 @@ def estimate_smem_size_layer(
     block_m, block_n, block_k = block_shape
     is_mxmma = layer_config.mma_type == MmaType.MXMMA
     a_bits = layer_config.a_dtype.num_bits
-    bs_bits = (layer_config.bs_dtype or layer_config.c_dtype).num_bits
+    bs_bits = layer_config.kernel_bs_dtype.num_bits
     zp_bits = 16 if layer_config.is_fp_zero_point else max(4, _next_pow2(layer_config.b_dtype.num_bits))
 
     stage_bytes = _stage_storage_bytes(layer_config, block_shape, is_mxmma)

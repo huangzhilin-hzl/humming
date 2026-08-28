@@ -16,6 +16,7 @@ GROUPED_INPUT_SIZE = 128
 SPECIAL_FEATURES = {
     "use_int_weight_scale",
     "use_fused_e8m0_scale",
+    "use_nvfp4_w4a8",
     "use_packed_k_layout",
 }
 
@@ -47,6 +48,18 @@ def _kernel_case(
 
 
 SPECIAL_WEIGHT_CASES = (
+    _kernel_case(
+        required_features=("use_nvfp4_w4a8",),
+        name="nvfp4-w4a8-sm90",
+        layer_config=_layer_config(
+            a_dtype=dtypes.float8e4m3,
+            b_dtype=dtypes.float4e2m1,
+            bs_dtype=dtypes.float8e4m3,
+            weight_scale_group_size=16,
+            weight_scale_2_type=WeightScale2Type.TENSOR,
+            mma_type=MmaType.WGMMA,
+        ),
+    ),
     _kernel_case(
         required_features=(),
         name="nvfp4-a16-dense",

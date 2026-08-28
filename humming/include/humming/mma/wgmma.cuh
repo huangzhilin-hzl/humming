@@ -1,5 +1,6 @@
 #pragma once
 
+#include <humming/datatype/nvfp4_w4a8.cuh>
 #include <humming/utils/all.cuh>
 
 
@@ -34,6 +35,7 @@ public:
   static constexpr bool kHasZeroPoint = Ctx::kHasZeroPoint;
   static constexpr bool kIsFpZeroPoint = Ctx::kIsFpZeroPoint;
   static constexpr bool kUseFusedE8m0Scale = Ctx::kUseFusedE8m0Scale;
+  static constexpr bool kUseNvfp4W4A8 = Ctx::kUseNvfp4W4A8;
 
   static constexpr uint32_t kPartMmaShapeK = 256 / ElementA::kBits;
   static constexpr uint32_t kSwizzleBytes = ElementA::kBits * BlockShape::K >= 1024 ? 128 : 64;
@@ -80,7 +82,21 @@ public:
   void transform_b(uint32_t buffer_id, uint32_t iter_id) {
     if constexpr (std::is_same<ElementA, ElementB>::value) return;
 
-    if constexpr (kUseFusedE8m0Scale) {
+    if constexpr (kUseNvfp4W4A8) {
+      static_assert(std::is_same<ElementA, Float8E4M3>::value);
+      static_assert(std::is_same<ElementB, Float4E2M1>::value);
+      static_assert(std::is_same<typename Ctx::ElementBS, Float32>::value);
+      static_assert(Ctx::kWeightScaleGroupSize == 16);
+      static_assert(!kUsePackedKLayout);
+      constexpr uint32_t kTransformIters = WarpShape::N / (MmaShape::N / 4);
+      constexpr uint32_t kScaleGroupStride = WarpShape::N / 8;
+      PRAGMA_UNROLL
+      for (uint32_t i = 0; i < kTransformIters; i++) {
+        uint32_t *regs_b_ptr = reinterpret_cast<uint32_t *>(regs_b[buffer_id][i][0]);
+        dequant_nvfp4_w4a8(
+            regs_qb[buffer_id], regs_b_ptr, i, arith.bs[buffer_id], kScaleGroupStride);
+      }
+    } else if constexpr (kUseFusedE8m0Scale) {
       uint32_t *regs_b_ptr = reinterpret_cast<uint32_t *>(regs_b[buffer_id]);
       fused_dequant_for_mxfp4<ElementA, WarpShape::N / 16, true>(regs_qb[buffer_id], regs_b_ptr, arith.bs[buffer_id]);
     } else {

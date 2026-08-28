@@ -25,7 +25,7 @@ Humming is a high-performance, lightweight, and highly flexible JIT (Just-In-Tim
 | :--- | :--- | :--- |
 | **FP16** (e5m10) | SM75+ | • Symmetric INT1-8<br>• INT1-8 with dynamic zero point<br>• Arbitrary signed FP (kBits ≤ 8, kExp ≤ 5) |
 | **BF16** (e8m7) | SM80+ | • Symmetric INT1-8<br>• INT1-8 with dynamic zero point<br>• Arbitrary signed FP (kBits ≤ 8) |
-| **FP8** (e4m3) | SM89+ | • Symmetric INT1-5<br>• INT1-4 with dynamic zero point<br>• Arbitrary signed FP (kExp ≤ 4, kMan ≤ 3) |
+| **FP8** (e4m3) | SM89+ | • Symmetric INT1-5<br>• INT1-4 with dynamic zero point<br>• Arbitrary signed FP (kExp ≤ 4, kMan ≤ 3)<br>• SM90 NVFP4 E2M1 with E4M3/K16 scales (W4A8 promotion) |
 | **FP8** (e5m2) | SM89+ | • Symmetric INT1-4<br>• INT1-3 with dynamic zero point<br>• Arbitrary signed FP (kExp ≤ 5, kMan ≤ 2) |
 | **FP4** (e2m1) | SM120+ | • Symmetric INT1-3<br>• INT1-2 with dynamic zero point<br>• Arbitrary signed FP (kExp ≤ 2, kMan ≤ 1) |
 | **INT8** | SM75+ | • Symmetric INT1-8<br>• INT1-7 with dynamic zero point |
@@ -82,3 +82,4 @@ This project is highly inspired by
 - [Marlin Kernel](https://github.com/IST-DASLab/marlin/) and [vLLM](https://github.com/vllm-project/vllm) Marlin Kernel
 - [lmdeploy](https://github.com/InternLM/lmdeploy/) GEMM kernel
 - [CUTLASS](https://github.com/nvidia/cutlass)
+- [FlashInfer SM90 NVFP4 W4A8](https://github.com/flashinfer-ai/flashinfer/pull/4589)

@@ -18,6 +18,10 @@ def _cuda_compiler_version(compiler_cls):
 
 @dataclasses.dataclass(kw_only=True, unsafe_hash=True)
 class LayerConfig(BaseHummingConfig):
+    _name_map: ClassVar[dict[str, str]] = {
+        "use_nvfp4_w4a8": "kUseNvfp4W4A8",
+    }
+
     # shape config
     shape_n: int
     shape_k: int
@@ -40,6 +44,7 @@ class LayerConfig(BaseHummingConfig):
     weight_scale_2_type: WeightScale2Type | None = None
     use_int_weight_scale: bool | None = None
     use_fused_e8m0_scale: bool | None = None
+    use_nvfp4_w4a8: bool | None = None
     has_zero_point: bool = False
     is_fp_zero_point: bool = False
 
@@ -191,6 +196,22 @@ class LayerConfig(BaseHummingConfig):
         if self.mma_type == MmaType.MXMMA and self.is_group_weight_scale and self.input_scale_group_size > 0:
             assert self.input_scale_group_size == self.weight_scale_group_size
 
+        nvfp4_w4a8_supported = (
+            self.mma_type == MmaType.WGMMA
+            and self.a_dtype == dtypes.float8e4m3
+            and self.b_dtype == dtypes.float4e2m1
+            and self.bs_dtype == dtypes.float8e4m3
+            and self.is_group_weight_scale
+            and self.weight_scale_group_size == 16
+            and not self.has_zero_point
+        )
+        if self.use_nvfp4_w4a8 is None:
+            self.use_nvfp4_w4a8 = nvfp4_w4a8_supported
+        elif self.use_nvfp4_w4a8:
+            assert nvfp4_w4a8_supported, (
+                "use_nvfp4_w4a8 requires SM90 WGMMA, FP8 E4M3 activation, "
+                "NVFP4 E2M1 weight with E4M3 K16 group scale, and no zero point"
+            )
         if not self.has_input_scale:
             self.as_dtype = None
         elif self.as_dtype is None:
@@ -252,6 +273,9 @@ class LayerConfig(BaseHummingConfig):
             assert self.a_dtype.num_bits == 8, "use_packed_k_layout requires 8-bit activation"
             assert self.b_dtype.num_bits % 2 == 0, "use_packed_k_layout requires even-bit weight"
             assert not self.use_fused_e8m0_scale, "packed_k_layout is incompatible with fused-e8m0"
+        assert not (self.use_nvfp4_w4a8 and self.use_packed_k_layout), (
+            "NVFP4 W4A8 promotion is incompatible with packed_k_layout"
+        )
 
         if type(self) is LayerConfig:
             self._config_str = self.to_str()
@@ -305,8 +329,7 @@ class LayerConfig(BaseHummingConfig):
     def weight_nbytes(self):
         nbytes1 = self.shape_n * self.shape_k * self.b_dtype.num_bits // 8
         num_groups = self.shape_k / (self.weight_scale_group_size or self.shape_k)
-        assert self.bs_dtype is not None
-        nbytes2 = self.shape_n * num_groups * self.bs_dtype.num_bits // 8
+        nbytes2 = self.shape_n * num_groups * self.kernel_bs_dtype.num_bits // 8
         nbytes3 = self.shape_n * num_groups * (math.ceil(self.b_dtype.num_bits / 4) * 4) // 8
         nbytes = nbytes1 + nbytes2
         if self.has_zero_point and self.is_fp_zero_point:
@@ -323,6 +346,13 @@ class LayerConfig(BaseHummingConfig):
             return torch.bfloat16
         else:
             raise ValueError(f"unsupported c_dtype: {self.c_dtype}")
+
+    @property
+    def kernel_bs_dtype(self):
+        assert self.bs_dtype is not None
+        if self.use_nvfp4_w4a8:
+            return dtypes.float32
+        return self.bs_dtype
 
     @property
     def should_apply_bs_on_c(self):

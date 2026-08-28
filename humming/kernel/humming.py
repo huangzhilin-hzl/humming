@@ -120,7 +120,7 @@ class HummingKernel(KernelRuntime, LayerConfig, ComputeConfig, TuningConfig):
         self.check_config()
         self.mma_op_class = self.select_mma_op_class()
 
-        assert self.bs_dtype is not None
+        kernel_bs_dtype = self.kernel_bs_dtype
         self.code = CODE_TEMPLATE.render(
             use_warp_spec=int(self.use_warp_spec or False),
             mma_op_class=self.mma_op_class.to_cpp_str(),
@@ -140,7 +140,7 @@ class HummingKernel(KernelRuntime, LayerConfig, ComputeConfig, TuningConfig):
             a_dtype=self.a_dtype.to_cpp_str(),
             b_dtype=self.b_dtype.to_cpp_str(),
             c_dtype=self.c_dtype.to_cpp_str(),
-            bs_dtype=self.bs_dtype.to_cpp_str(),
+            bs_dtype=kernel_bs_dtype.to_cpp_str(),
         )
         self.kernel_expr = (
             f"humming<\n"
@@ -152,7 +152,7 @@ class HummingKernel(KernelRuntime, LayerConfig, ComputeConfig, TuningConfig):
             f"    {self.a_dtype.to_cpp_str()},\n"
             f"    {self.b_dtype.to_cpp_str()},\n"
             f"    {self.c_dtype.to_cpp_str()},\n"
-            f"    {self.bs_dtype.to_cpp_str()},\n"
+            f"    {kernel_bs_dtype.to_cpp_str()},\n"
             f"    LayerConfig,\n"
             f"    ComputeConfig,\n"
             f"    TuningConfig>"
@@ -348,7 +348,7 @@ class HummingKernel(KernelRuntime, LayerConfig, ComputeConfig, TuningConfig):
         if self.input_scale_group_size > 0:
             assert self.input_scale_group_size >= 256 // self.a_dtype.num_bits
         if self.weight_scale_group_size > 0:
-            assert self.weight_scale_group_size >= 256 // self.a_dtype.num_bits
+            assert self.use_nvfp4_w4a8 or self.weight_scale_group_size >= 256 // self.a_dtype.num_bits
         if self.weight_scale_group_size_n > 1:
             assert self.weight_scale_group_size_n >= 64
 

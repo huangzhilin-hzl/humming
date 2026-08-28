@@ -34,6 +34,7 @@ private:
   static constexpr bool kHasChannelWeightScale = Ctx::kHasChannelWeightScale;
   static constexpr bool kHasTensorWeightScale = Ctx::kHasTensorWeightScale;
   static constexpr bool kHasZeroPoint = Ctx::kHasZeroPoint;
+  static constexpr bool kUseNvfp4W4A8 = Ctx::kUseNvfp4W4A8;
   static constexpr bool kUseNativeDequantB =
       Ctx::kUseNativeDequant && kUseNativeWeightDequant<ElementB, ElementA>;
   static constexpr bool kUseNativeDequantBS =
@@ -43,8 +44,8 @@ private:
   static constexpr uint2 kExpOffset = get_epilogue_exp_offset<
       ElementA, ElementB, ElementC, ElementBS, kHasZeroPoint,
       kIsF16Accum, kIsGroupInputScale,
-      kIsGroupOrBlockWeightScale && !Ctx::kUseFusedE8m0Scale,
-      MmaOpClass::kNativeMixed, kUseNativeDequantB, kUseNativeDequantBS>();
+      (kIsGroupOrBlockWeightScale && !Ctx::kUseFusedE8m0Scale),
+      MmaOpClass::kNativeMixed, (kUseNativeDequantB || kUseNvfp4W4A8), kUseNativeDequantBS>();
 
   static constexpr uint32_t kSizeAS = WarpShape::M / 8;
   static constexpr uint32_t kSizeBS = WarpShape::N / 4 * ElementBS::kBits / 32;

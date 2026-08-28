@@ -39,6 +39,11 @@ private:
   static constexpr bool kIsFpZeroPoint = Ctx::kIsFpZeroPoint;
   static constexpr bool kUseIntWeightScale = Ctx::kUseIntWeightScale;
   static constexpr bool kUseFusedE8m0Scale = Ctx::kUseFusedE8m0Scale;
+  static constexpr bool kUseNvfp4W4A8 = Ctx::kUseNvfp4W4A8;
+  static constexpr bool kApplyGroupWeightScaleOnC =
+      kIsGroupWeightScale && !kUseFusedE8m0Scale;
+  static constexpr bool kApplyBlockWeightScaleOnC =
+      kIsBlockWeightScale && !kUseFusedE8m0Scale;
   static constexpr bool kUseNativeDequantB =
       Ctx::kUseNativeDequant && kUseNativeWeightDequant<ElementB, ElementA>;
   static constexpr bool kUseNativeDequantBS =
@@ -55,10 +60,11 @@ private:
   static constexpr uint2 kExpOffset = get_mainloop_exp_offset<
       ElementA, ElementB, ElementBS, kHasZeroPoint,
       kIsF16Accum, kIsGroupInputScale,
-      kIsGroupOrBlockWeightScale && !kUseFusedE8m0Scale,
-      MmaOpClass::kNativeMixed, kUseNativeDequantB, kUseNativeDequantBS>();
+      (kIsGroupOrBlockWeightScale && !kUseFusedE8m0Scale),
+      MmaOpClass::kNativeMixed, (kUseNativeDequantB || kUseNvfp4W4A8), kUseNativeDequantBS>();
 
-  static constexpr uint32_t kDequantBSBits = (ElementA::kBits < 16 && !kIsF16Accum) ? 32 : 16;
+  static constexpr uint32_t kDequantBSBits =
+      kUseNvfp4W4A8 || (ElementA::kBits < 16 && !kIsF16Accum) ? 32 : 16;
   static constexpr uint32_t kNumSubBlocksM = CEIL_DIV(WarpShape::M, 16);
   static constexpr uint32_t kNumSubBlocksN = WarpShape::N / 16;
   static constexpr uint32_t kNumASPerSubBlock = kUseWgmma ? 4 : 2;
@@ -69,7 +75,7 @@ private:
 public:
   uint32_t as[2][kNumASPerGroup];
   uint32_t q_as[kNumASPerGroup];
-  uint32_t bs[2][MAX(kNumBSPerGroup, 8) * ElementBS::kBits / 32];
+  uint32_t bs[2][MAX(kNumBSPerGroup * (kUseNvfp4W4A8 ? 2 : 1), 8) * ElementBS::kBits / 32];
   uint32_t dq_bs[MAX(kNumBSPerGroup, 8) * kDequantBSBits / 32];
   uint32_t zp[2][(kIsFpZeroPoint ? 4 : CEIL_DIV(ElementB::kBits, 4)) * kNumZPGroupsPerMma];
 
@@ -243,7 +249,7 @@ public:
       is_last_iter = iter_id == (Ctx::kWarpIters - 1);
     }
     uint32_t is_as_group_end = kIsGroupInputScale && k_index % kInputScaleGroupSize == 0;
-    constexpr bool kProcessGroupWeightScale = kIsGroupWeightScale && !kUseFusedE8m0Scale;
+    constexpr bool kProcessGroupWeightScale = kApplyGroupWeightScaleOnC;
     constexpr bool kProcessBlockWeightScale = kIsBlockWeightScale && !kUseFusedE8m0Scale;
     uint32_t is_bs_group_end = (kProcessGroupWeightScale || kProcessBlockWeightScale) && k_index % kWeightScaleGroupSize == 0;
 
@@ -283,7 +289,14 @@ public:
     }
 
     if (m == 0 && n == 0 && should_apply_bs) {
-      if constexpr (kUseIntWeightScale) {
+      if constexpr (kUseNvfp4W4A8) {
+        float *dq_bs_vals = reinterpret_cast<float *>(dq_bs);
+        PRAGMA_UNROLL
+        for (uint32_t i = 0; i < kNumBSPerGroup; i++) {
+          uint16_t coarse_bits = bs[buffer_id][i] >> 16;
+          dq_bs_vals[i] = __bfloat162float(__ushort_as_bfloat16(coarse_bits));
+        }
+      } else if constexpr (kUseIntWeightScale) {
         int16_t *bs_vals = reinterpret_cast<int16_t *>(bs[buffer_id]);
         int32_t *dq_bs_vals = reinterpret_cast<int32_t *>(dq_bs);
         PRAGMA_UNROLL
@@ -370,10 +383,8 @@ public:
   CUDA_INLINE
   void may_apply_as_and_bs_on_mma_c(uint32_t *regs_c_ptr, uint32_t m, uint32_t n, uint32_t k, uint32_t iter_id) {
     if constexpr (ElementA::kBits == 16) return;
-    if constexpr (!kIsGroupInputScale && !kIsGroupWeightScale && !kIsBlockWeightScale) return;
+    if constexpr (!kIsGroupInputScale && !kApplyGroupWeightScaleOnC && !kApplyBlockWeightScaleOnC) return;
     if constexpr (kUseWgmma) return;
-    constexpr bool kApplyGroupWeightScaleOnC = kIsGroupWeightScale && !kUseFusedE8m0Scale;
-    constexpr bool kApplyBlockWeightScaleOnC = kIsBlockWeightScale && !kUseFusedE8m0Scale;
     constexpr bool kApplyGroupInputScaleOnC = kIsGroupInputScale;
     if constexpr (kUseFusedE8m0Scale && !kApplyGroupInputScaleOnC) return;
 
@@ -473,10 +484,8 @@ public:
   CUDA_INLINE
   void may_apply_as_and_bs_on_wgmma_c(uint32_t *regs_c_ptr, uint32_t m, uint32_t k, uint32_t iter_id, uint32_t delta_m) {
     if constexpr (ElementA::kBits == 16) return;
-    if constexpr (!kIsGroupInputScale && !kIsGroupWeightScale && !kIsBlockWeightScale) return;
+    if constexpr (!kIsGroupInputScale && !kApplyGroupWeightScaleOnC && !kApplyBlockWeightScaleOnC) return;
     if constexpr (!kUseWgmma) return;
-    constexpr bool kApplyGroupWeightScaleOnC = kIsGroupWeightScale && !kUseFusedE8m0Scale;
-    constexpr bool kApplyBlockWeightScaleOnC = kIsBlockWeightScale && !kUseFusedE8m0Scale;
     constexpr bool kApplyGroupInputScaleOnC = kIsGroupInputScale;
     if constexpr (kUseFusedE8m0Scale && !kApplyGroupInputScaleOnC) return;
 
@@ -514,6 +523,9 @@ public:
         scalar_t2 bs_val;
         if constexpr (!kIsGroupWeightScale && kIsBlockWeightScale) {
           bs_val = reinterpret_cast<scalar_t2 *>(dq_bs)[0];
+        } else if constexpr (kUseNvfp4W4A8) {
+          bs_val = this->float2num2(
+              reinterpret_cast<float *>(dq_bs)[(delta_m + m) * 2 + inner_m]);
         } else if constexpr (ElementBS::kBits == 8 || kExpOffset.y) {
           bs_val = this->num2num2(reinterpret_cast<scalar_t *>(dq_bs)[(delta_m + m) * 2 + inner_m]);
         } else {

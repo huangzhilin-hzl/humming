@@ -16,6 +16,7 @@ private:
   static constexpr bool kIsChannel = Ctx::kIsChannelWeightScale;
   static constexpr bool kIsBlock = Ctx::kIsBlockWeightScale;
   static constexpr bool kUseFusedE8m0Scale = Ctx::kUseFusedE8m0Scale;
+  static constexpr bool kUseNvfp4W4A8 = Ctx::kUseNvfp4W4A8;
   static constexpr uint32_t kGroupSize = Ctx::kWeightScaleGroupSize > 0 ? Ctx::kWeightScaleGroupSize : BlockShape::K;
   static constexpr uint32_t kGroupSizeN = Ctx::kWeightScaleGroupSizeN;
   static constexpr uint32_t kPartMmaShapeK = Ctx::kPartMmaShapeK;
@@ -107,7 +108,19 @@ public:
 
     const LoadType *smem_ptr_load = reinterpret_cast<const LoadType *>(smem_ptr);
     LoadType *reg_ptr_load = reinterpret_cast<LoadType *>(regs_ptr);
-    reg_ptr_load[0] = smem_ptr_load[s_sh_rd];
+    constexpr uint32_t kScaleGroupsPerMma = kUseNvfp4W4A8 ? 2 : 1;
+    constexpr uint32_t kScaleBytesPerGroup = WarpShape::N / 8 * ElementBS::kBits / 8;
+    constexpr uint32_t kLoadsPerScaleGroup = kScaleBytesPerGroup / sizeof(LoadType);
+    constexpr uint32_t kGroupStride = kSmemStride * 16 / sizeof(LoadType);
+    PRAGMA_UNROLL
+    for (uint32_t group = 0; group < kScaleGroupsPerMma; group++) {
+      PRAGMA_UNROLL
+      for (uint32_t load = 0; load < kLoadsPerScaleGroup; load++) {
+        constexpr uint32_t kLoadStride = kPackBlockSize / kLoadsPerScaleGroup;
+        reg_ptr_load[group * kLoadsPerScaleGroup + load] =
+            smem_ptr_load[s_sh_rd + group * kGroupStride + load * kLoadStride];
+      }
+    }
   }
 
   CUDA_INLINE

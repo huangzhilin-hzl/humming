@@ -232,6 +232,55 @@ def process_fused_e8m0_scale(
     return weight, weight_scale, out_weight_scale_2
 
 
+def process_nvfp4_w4a8_scale(
+    weight_scale: torch.Tensor,
+    weight: torch.Tensor | None = None,
+    promotion_group_size: int = 32,
+) -> torch.Tensor:
+    """Pack NVFP4 K16 scales as BF16 promotion/coarse-scale pairs.
+
+    SM90 promotes E2M1 values to E4M3 before WGMMA. The BF16 residual is
+    consumed by that promotion; one BF16 coarse factor is shared by a K32
+    WGMMA instruction and applied to its accumulator.
+    """
+    assert promotion_group_size == 32
+    scales_per_promotion_group = promotion_group_size // 16
+    assert weight_scale.shape[-1] % scales_per_promotion_group == 0
+
+    scale_fp32 = weight_scale.float()
+    fp4_abs_max = 6.0
+    fp8_e4m3_abs_max = 448.0
+    rounding_margin = 1.0 + 2.0**-7
+    grouped_scale = scale_fp32.unflatten(-1, (-1, scales_per_promotion_group))
+    if weight is None:
+        code_block_max = torch.full_like(scale_fp32, fp4_abs_max)
+    else:
+        packed_weight = weight.view(torch.int32)
+        magnitude_lut = torch.tensor(
+            [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0],
+            dtype=torch.float32,
+            device=weight.device,
+        )
+        word_max = torch.zeros_like(packed_weight, dtype=torch.float32)
+        for shift in range(0, 32, 4):
+            magnitude = magnitude_lut[(packed_weight >> shift) & 0x7]
+            word_max = torch.maximum(word_max, magnitude)
+        code_block_max = word_max.unflatten(-1, (-1, 2)).amax(dim=-1)
+    grouped_code_max = code_block_max.unflatten(-1, (-1, scales_per_promotion_group))
+    coarse_scale = (
+        (grouped_scale.abs() * grouped_code_max).amax(dim=-1, keepdim=True)
+        / fp8_e4m3_abs_max
+        * rounding_margin
+    )
+    coarse_scale = torch.where(coarse_scale > 0, coarse_scale, torch.ones_like(coarse_scale))
+    promotion_scale = (grouped_scale / coarse_scale).flatten(-2).to(torch.bfloat16)
+    coarse_scale = coarse_scale.expand_as(grouped_scale).flatten(-2).to(torch.bfloat16)
+
+    promotion_bits = promotion_scale.view(torch.uint16).to(torch.int32)
+    coarse_bits = coarse_scale.view(torch.uint16).to(torch.int32)
+    return (promotion_bits | (coarse_bits << 16)).view(torch.float32)
+
+
 def transform_humming_weight(
     weight: torch.Tensor,
     b_dtype: dtypes.DataType,
@@ -433,6 +482,13 @@ def transform_humming_tensors(
             weight=weight,
             weight_scale=weight_scale,
             weight_scale_2=weight_scale_2,
+        )
+
+    if config.use_nvfp4_w4a8:
+        assert weight_scale is not None
+        weight_scale = process_nvfp4_w4a8_scale(
+            weight_scale=weight_scale,
+            weight=weight,
         )
 
     interleave_mode = 3

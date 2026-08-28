@@ -174,6 +174,26 @@ def test_grouped_fp8_uses_legal_n_tile_for_non_128_multiple():
     assert config["warp_shape"][2] == 64
 
 
+def test_nvfp4_w4a8_k16_scale_selects_legal_sm90_schedule():
+    layer = _layer(
+        6144,
+        3584,
+        bs_dtype=dtypes.float8e4m3,
+        input_scale_group_size=0,
+        weight_scale_group_size=16,
+    )
+
+    decision = Sm90Heuristics.get_tuning_decision(
+        layer,
+        shape_m=64,
+        gemm_type=GemmType.INDEXED,
+    )
+
+    assert layer.use_nvfp4_w4a8
+    assert decision.selected_analysis.legal
+    assert decision.selected.block_shape[2] % 32 == 0
+
+
 def test_grouped_fp8_enables_multicast_at_the_dense_threshold():
     layer = _layer(6144, 3584, num_experts=0)
 

@@ -311,7 +311,11 @@ def get_problem_rejection_reasons(
         ("weight scale group", layer_config.weight_scale_group_size),
     )
     for name, group_size in scale_groups:
-        if group_size and group_size < mma_k:
+        if (
+            group_size
+            and group_size < mma_k
+            and not (name == "weight scale group" and layer_config.use_nvfp4_w4a8)
+        ):
             reasons.append(f"{name}={group_size} is smaller than MMA K={mma_k}")
     if 1 < layer_config.weight_scale_group_size_n < 64:
         reasons.append(
