@@ -62,16 +62,24 @@ CUDA_INLINE uint32_t nvfp4_prmt_lookup(uint32_t low, uint32_t high, uint32_t sel
 }
 
 
+CUDA_INLINE uint32_t nvfp4_pack_prmt_selectors(uint32_t byte_spaced_selectors) {
+  return (byte_spaced_selectors & 0x00000007u) |
+      ((byte_spaced_selectors & 0x00000700u) >> 4) |
+      ((byte_spaced_selectors & 0x00070000u) >> 8) |
+      ((byte_spaced_selectors & 0x07000000u) >> 12);
+}
+
+
 CUDA_INLINE uint32_t promote_nvfp4_nibbles(
     uint32_t packed, __nv_bfloat16 residual, bool high_nibbles) {
   const Nvfp4W4A8DecodeLut lut = make_nvfp4_w4a8_decode_lut(residual);
   uint32_t selectors;
   uint32_t signs;
   if (high_nibbles) {
-    selectors = (packed >> 4) & 0x07070707u;
+    selectors = nvfp4_pack_prmt_selectors(packed >> 4);
     signs = packed & 0x80808080u;
   } else {
-    selectors = packed & 0x07070707u;
+    selectors = nvfp4_pack_prmt_selectors(packed);
     signs = (packed & 0x08080808u) << 4;
   }
   return nvfp4_prmt_lookup(lut.low, lut.high, selectors) ^ signs ^ lut.residual_sign;

@@ -87,6 +87,28 @@ def test_nvfp4_decoder_residuals_match_repacked_n_and_k_layout():
     ]
 
 
+@pytest.mark.parametrize(
+    ("byte_spaced", "expected"),
+    [
+        (0x04030201, 0x4321),
+        (0x07060500, 0x7650),
+        (0xFFFFFFFF, 0x7777),
+    ],
+)
+def test_nvfp4_prmt_selectors_are_packed_into_contiguous_nibbles(byte_spaced, expected):
+    packed = (
+        (byte_spaced & 0x00000007)
+        | ((byte_spaced & 0x00000700) >> 4)
+        | ((byte_spaced & 0x00070000) >> 8)
+        | ((byte_spaced & 0x07000000) >> 12)
+    )
+    assert packed == expected
+
+    source = (REPO_ROOT / "humming/include/humming/datatype/nvfp4_w4a8.cuh").read_text()
+    assert "selectors = nvfp4_pack_prmt_selectors(packed >> 4);" in source
+    assert "selectors = nvfp4_pack_prmt_selectors(packed);" in source
+
+
 def test_nvfp4_warp_n64_scale_loader_reads_contiguous_vectors():
     source = (REPO_ROOT / "humming/include/humming/memory/s2r_loader/loader_bs.cuh").read_text()
     layout1 = source.split("void load_layout1", 1)[1].split("void load_layout2", 1)[0]
