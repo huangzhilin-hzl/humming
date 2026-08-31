@@ -5,6 +5,10 @@ from typing import Any
 
 from humming import dtypes
 from humming.config import GemmType, LayerConfig, MmaType
+from humming.tune.base import (
+    NVFP4_F16_ACCUM_REJECTION,
+    validate_accumulation_mode,
+)
 from humming.utils.smem import estimate_smem_size_layer
 
 
@@ -47,6 +51,7 @@ class TuningProblem:
             raise ValueError("shape_m must be positive")
         if self.layer_config.shape_n <= 0 or self.layer_config.shape_k <= 0:
             raise ValueError("layer N and K dimensions must be positive")
+        validate_accumulation_mode(self.layer_config, self.use_f16_accum)
 
     def estimate_num_blocks_m(self, block_shape_m: int) -> int:
         if self.gemm_type == GemmType.DENSE or not self.layer_config.num_experts:
@@ -286,8 +291,12 @@ class _ResourceAnalysis:
 # Validate only invariants exercised by the migrated SM90 WGMMA policies.
 def get_problem_rejection_reasons(
     layer_config: LayerConfig,
+    *,
+    use_f16_accum: bool = False,
 ) -> tuple[str, ...]:
     reasons: list[str] = []
+    if layer_config.use_nvfp4_w4a8 and use_f16_accum:
+        reasons.append(NVFP4_F16_ACCUM_REJECTION)
     input_group_size = layer_config.input_scale_group_size
     unpadded_shape_k = layer_config.shape_k - layer_config.pad_shape_k
     if (
@@ -456,6 +465,8 @@ def _analyze_execution(
     geometry: _GeometryAnalysis,
 ) -> _ExecutionAnalysis:
     reasons: list[str] = []
+    if problem.layer_config.use_nvfp4_w4a8 and schedule.use_f16_accum:
+        reasons.append(NVFP4_F16_ACCUM_REJECTION)
     num_math_threads = (
         math.prod(geometry.ratios) * 32 if geometry.ratios is not None else 0
     )
@@ -575,7 +586,10 @@ def analyze_candidate(
     execution = _analyze_execution(problem, candidate, geometry)
     resources = _analyze_resources(problem, candidate, execution)
     hard_violations = (
-        get_problem_rejection_reasons(problem.layer_config)
+        get_problem_rejection_reasons(
+            problem.layer_config,
+            use_f16_accum=problem.use_f16_accum,
+        )
         + geometry.rejection_reasons
         + _get_tile_rejection_reasons(problem, candidate)
         + execution.rejection_reasons

@@ -80,11 +80,25 @@ def test_nvfp4_decoder_residuals_match_repacked_n_and_k_layout():
 
     # Repack emits one word per N row; low/high nibbles select K0/K16.
     assert assignments == [
-        ("0", "0", "10", "true"),
-        ("1", "0", "00", "false"),
-        ("2", "1", "11", "true"),
-        ("3", "1", "01", "false"),
+        ("0", "0", "00", "false"),
+        ("1", "0", "10", "true"),
+        ("2", "1", "01", "false"),
+        ("3", "1", "11", "true"),
     ]
+
+    wgmma_source = (REPO_ROOT / "humming/include/humming/mma/wgmma.cuh").read_text()
+    assert "static_assert(MmaOpClass::kCTypeBits == 32);" in wgmma_source
+
+
+def test_f16_grouped_as_is_prepared_when_weight_scale_retires_first():
+    source = (REPO_ROOT / "humming/include/humming/arith/mainloop_arith.cuh").read_text()
+    process = source.split("void may_process_as_and_bs_before_apply_on_c", 1)[1].split(
+        "void may_apply_as_and_bs_on_mma_c", 1
+    )[0]
+
+    assert "kIsGroupInputScale && (should_apply_as || should_apply_bs)" in process
+    assert "if (m == 0 && n == 0 && should_process_as)" in process
+    assert process.count("as_scalar2_ptr[i] = this->float22num2(as_float2_ptr[i]);") == 1
 
 
 @pytest.mark.parametrize(

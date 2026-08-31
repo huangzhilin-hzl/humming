@@ -32,6 +32,15 @@ def prepare_layer_config(
 
     assert isinstance(input_schema, HummingInputSchema)
     assert isinstance(weight_schema, HummingWeightSchema)
+    a_dtype = input_schema.a_dtype or f16_dtype
+
+    # Scale folding can erase the original E4M3 storage dtype. Resolve the
+    # preserved NVFP4 provenance to an execution mode only on SM90.
+    use_nvfp4_w4a8 = None
+    if weight_schema.is_nvfp4:
+        major, minor = torch.cuda.get_device_capability()
+        if major * 10 + minor == 90 and a_dtype == dtypes.float8e4m3:
+            use_nvfp4_w4a8 = True
 
     use_channel_scale_2 = (
         input_schema.a_dtype == dtypes.int8
@@ -44,7 +53,7 @@ def prepare_layer_config(
         weight_scale_2_type = WeightScale2Type.CHANNEL
 
     return LayerConfig(
-        a_dtype=input_schema.a_dtype or f16_dtype,
+        a_dtype=a_dtype,
         b_dtype=weight_schema.b_dtype,
         bs_dtype=weight_schema.bs_dtype or f16_dtype,
         as_dtype=input_schema.input_scale_dtype,
@@ -62,6 +71,7 @@ def prepare_layer_config(
         weight_scale_2_type=weight_scale_2_type,
         has_zero_point=weight_schema.has_zero_point,
         is_fp_zero_point=weight_schema.is_fp_zero_point,
+        use_nvfp4_w4a8=use_nvfp4_w4a8,
     )
 
 
@@ -76,6 +86,7 @@ def check_and_pad_tensors(config: LayerConfig, tensors: dict[str, torch.Tensor])
         weight_scale_2_type=config.weight_scale_2_type,
         has_zero_point=config.has_zero_point,
         is_fp_zero_point=config.is_fp_zero_point,
+        is_nvfp4=config.use_nvfp4_w4a8,
     )
 
     if config.use_int_weight_scale:

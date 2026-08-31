@@ -125,6 +125,7 @@ class ModeloptNvfp4WeightSchema(ModeloptWeightSchema):
             weight_scale_group_size=16,
             weight_scale_type=WeightScaleType.GROUP,
             weight_scale_2_type=weight_scale_2_type,
+            is_nvfp4=True,
         )
 
         return schema, output_tensors

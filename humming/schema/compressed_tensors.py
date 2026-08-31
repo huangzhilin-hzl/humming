@@ -251,6 +251,7 @@ class CompressedTensorsWeightSchema(BaseWeightSchema):
             weight_scale_type=weight_scale_type,
             weight_scale_2_type=weight_scale_2_type,
             has_zero_point=not self.symmetric,
+            is_nvfp4=self.format == "nvfp4-pack-quantized",
         )
 
         return schema, output_tensors

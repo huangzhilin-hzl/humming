@@ -1,4 +1,5 @@
 import pytest
+import torch
 
 from humming import dtypes
 from humming.config import ComputeConfig, GemmType, LayerConfig
@@ -88,6 +89,13 @@ F16_ACCUM_CASES = (
         weight_scale_group_size=64,
     ),
     _case(
+        "fp8-input-group64-weight-group32",
+        a_dtype=dtypes.float8e4m3,
+        b_dtype=dtypes.uint4,
+        input_scale_group_size=64,
+        weight_scale_group_size=32,
+    ),
+    _case(
         "fp8-f4-grouped-input-and-weight-32",
         a_dtype=dtypes.float8e4m3,
         b_dtype=dtypes.float4e2m1,
@@ -116,6 +124,14 @@ def test_f16_accumulation(test_case):
     results = runner.run()
     assert_kernel_test_shape_coverage(results)
     assert all(result.tuning_values["use_f16_accum"] for result in results)
+    if test_case.name == "fp8-input-group64-weight-group32":
+        for result in results:
+            torch.testing.assert_close(
+                result.outputs,
+                result.outputs_ref,
+                rtol=test_case.rtol,
+                atol=test_case.atol,
+            )
 
 
 def test_f16_accumulation_case_coverage():

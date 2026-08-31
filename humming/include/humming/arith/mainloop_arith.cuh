@@ -257,7 +257,12 @@ public:
     bool should_apply_bs = (kProcessGroupWeightScale || kProcessBlockWeightScale) && (is_last_iter || is_bs_group_end);
     if (!should_apply_as && !should_apply_bs) return;
 
-    if (m == 0 && n == 0 && should_apply_as) {
+    // A shorter weight-scale group can retire a partial accumulator before the
+    // activation-scale group ends. That partial still consumes AS, so prepare
+    // it whenever either scale triggers the retire. The m/n gate makes this
+    // in-place conversion run once for each K retire point.
+    bool should_process_as = kIsGroupInputScale && (should_apply_as || should_apply_bs);
+    if (m == 0 && n == 0 && should_process_as) {
       if constexpr (kIsBlockWeightScale) {
         float *as_float_ptr = reinterpret_cast<float *>(as[buffer_id]);
         float *q_as_float_ptr = reinterpret_cast<float *>(q_as);

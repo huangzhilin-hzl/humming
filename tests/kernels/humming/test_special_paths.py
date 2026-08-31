@@ -1,4 +1,5 @@
 import pytest
+import torch
 
 from humming import dtypes
 from humming.config import ComputeConfig, GemmType, LayerConfig, MmaType, WeightScale2Type
@@ -57,6 +58,18 @@ SPECIAL_WEIGHT_CASES = (
             bs_dtype=dtypes.float8e4m3,
             weight_scale_group_size=16,
             weight_scale_2_type=WeightScale2Type.TENSOR,
+            mma_type=MmaType.WGMMA,
+        ),
+    ),
+    _kernel_case(
+        required_features=("use_nvfp4_w4a8",),
+        name="nvfp4-w4a8-folded-bf16-scale",
+        layer_config=_layer_config(
+            a_dtype=dtypes.float8e4m3,
+            b_dtype=dtypes.float4e2m1,
+            bs_dtype=dtypes.bfloat16,
+            weight_scale_group_size=16,
+            use_nvfp4_w4a8=True,
             mma_type=MmaType.WGMMA,
         ),
     ),
@@ -197,6 +210,14 @@ def test_special_weight_path(required_features, test_case):
     skip_if_unsupported(a_dtype=config.a_dtype, mma_type=config.mma_type.value)
     results = KernelTestRunner(test_case).run()
     assert_kernel_test_shape_coverage(results)
+    if "use_nvfp4_w4a8" in required_features:
+        for result in results:
+            torch.testing.assert_close(
+                result.outputs,
+                result.outputs_ref,
+                rtol=test_case.rtol,
+                atol=test_case.atol,
+            )
 
 
 def test_special_weight_path_coverage():
@@ -209,9 +230,15 @@ def test_special_weight_path_coverage():
 
     int_scale_configs = configs_by_feature["use_int_weight_scale"]
     fused_configs = configs_by_feature["use_fused_e8m0_scale"]
+    nvfp4_configs = configs_by_feature["use_nvfp4_w4a8"]
     packed_k_configs = configs_by_feature["use_packed_k_layout"]
     assert {config.a_dtype for config in int_scale_configs} == {dtypes.int4, dtypes.int8}
     assert {config.weight_scale_2_type.name for config in fused_configs} == {"CHANNEL", "TENSOR"}
+    assert {config.bs_dtype for config in nvfp4_configs} == {
+        dtypes.bfloat16,
+        dtypes.float8e4m3,
+    }
+    assert any(config.weight_scale_2_type == WeightScale2Type.NONE for config in nvfp4_configs)
     assert {config.a_dtype for config in packed_k_configs} == {dtypes.float8e4m3, dtypes.int8}
     assert any(config.use_int_weight_scale for config in packed_k_configs)
 

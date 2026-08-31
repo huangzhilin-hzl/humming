@@ -4,7 +4,7 @@ import numpy as np
 
 from humming import dtypes
 from humming.config import GemmType, LayerConfig
-from humming.tune.base import DeviceHeuristics
+from humming.tune.base import DeviceHeuristics, validate_accumulation_mode
 from humming.utils.smem import estimate_smem_size_layer
 
 
@@ -308,6 +308,7 @@ class Sm90H20Heuristics(DeviceHeuristics):
         use_batch_invariant: bool = False,
         gemm_type: GemmType = GemmType.DENSE,
     ):
+        validate_accumulation_mode(layer_config, use_f16_accum)
         group_size = layer_config.input_scale_group_size or layer_config.weight_scale_group_size
         is_moe = gemm_type != GemmType.DENSE
         a_dtype = layer_config.a_dtype

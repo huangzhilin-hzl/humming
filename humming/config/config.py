@@ -196,21 +196,37 @@ class LayerConfig(BaseHummingConfig):
         if self.mma_type == MmaType.MXMMA and self.is_group_weight_scale and self.input_scale_group_size > 0:
             assert self.input_scale_group_size == self.weight_scale_group_size
 
-        nvfp4_w4a8_supported = (
+        nvfp4_w4a8_base_supported = (
             self.mma_type == MmaType.WGMMA
             and self.a_dtype == dtypes.float8e4m3
             and self.b_dtype == dtypes.float4e2m1
-            and self.bs_dtype == dtypes.float8e4m3
             and self.is_group_weight_scale
             and self.weight_scale_group_size == 16
             and not self.has_zero_point
         )
+        nvfp4_w4a8_explicit_supported = (
+            nvfp4_w4a8_base_supported
+            and self.bs_dtype in (dtypes.float8e4m3, dtypes.float16, dtypes.bfloat16)
+        )
+        # Only the native E4M3 schema is unambiguous. Stacked schemas fold the
+        # global scale into FP16/BF16 storage and preserve the semantic flag.
+        nvfp4_w4a8_auto_supported = (
+            nvfp4_w4a8_base_supported and self.bs_dtype == dtypes.float8e4m3
+        )
         if self.use_nvfp4_w4a8 is None:
-            self.use_nvfp4_w4a8 = nvfp4_w4a8_supported
+            self.use_nvfp4_w4a8 = nvfp4_w4a8_auto_supported
         elif self.use_nvfp4_w4a8:
-            assert nvfp4_w4a8_supported, (
+            assert nvfp4_w4a8_explicit_supported, (
                 "use_nvfp4_w4a8 requires SM90 WGMMA, FP8 E4M3 activation, "
-                "NVFP4 E2M1 weight with E4M3 K16 group scale, and no zero point"
+                "NVFP4 E2M1 weight with E4M3/FP16/BF16 K16 group scale, "
+                "and no zero point"
+            )
+        elif nvfp4_w4a8_explicit_supported:
+            raise AssertionError(
+                "this WGMMA FP8-E4M3 x FP4-E2M1 K16 configuration is only "
+                "supported through NVFP4 W4A8 promotion; omit "
+                "use_nvfp4_w4a8 to auto-select the E4M3-scale path or set it "
+                "to True for a folded FP16/BF16 scale"
             )
         if not self.has_input_scale:
             self.as_dtype = None
@@ -246,6 +262,20 @@ class LayerConfig(BaseHummingConfig):
                 and self.weight_scale_group_size > 0
                 and self.weight_scale_group_size_n == 1
             )
+
+        special_weight_scale_modes = [
+            name
+            for name in (
+                "use_nvfp4_w4a8",
+                "use_fused_e8m0_scale",
+                "use_int_weight_scale",
+            )
+            if getattr(self, name)
+        ]
+        assert len(special_weight_scale_modes) <= 1, (
+            "special weight-scale modes are mutually exclusive, got "
+            f"{', '.join(special_weight_scale_modes)}"
+        )
 
         if self.use_int_weight_scale:
             assert not is_channel_scale_2, "use_int_weight_scale is incompatible with channel weight_scale_2"

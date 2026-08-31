@@ -3,7 +3,7 @@ import functools
 import torch
 
 from humming.config import GemmType, LayerConfig
-from humming.tune.base import DeviceHeuristics
+from humming.tune.base import DeviceHeuristics, validate_accumulation_mode
 from humming.tune.raster import raster_group_m_for_config
 from humming.tune.sm8x import (
     Sm80Heuristics,
@@ -91,6 +91,7 @@ def get_heuristics_config(
 
     if isinstance(layer_config, dict):
         layer_config = LayerConfig(**layer_config)
+    validate_accumulation_mode(layer_config, use_f16_accum)
     heuristics_cls = get_heuristics_class()
     if isinstance(shape_m, int):
         config = heuristics_cls.get_config(

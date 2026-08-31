@@ -181,6 +181,7 @@ class KernelTestRunner:
             weight_scale_2_type=config.weight_scale_2_type,
             has_zero_point=config.has_zero_point,
             is_fp_zero_point=config.is_fp_zero_point,
+            is_nvfp4=config.use_nvfp4_w4a8,
         )
         allow_negative_scale = config.mma_type != MmaType.MXMMA
         dtype = config.param_dtype

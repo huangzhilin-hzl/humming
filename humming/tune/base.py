@@ -7,6 +7,16 @@ from humming.config import GemmType, LayerConfig
 from humming.utils.device import get_device_num_sms
 from humming.utils.smem import estimate_smem_size_layer
 
+NVFP4_F16_ACCUM_REJECTION = "NVFP4 W4A8 promotion requires FP32 accumulation"
+
+
+def validate_accumulation_mode(
+    layer_config: LayerConfig,
+    use_f16_accum: bool,
+) -> None:
+    if layer_config.use_nvfp4_w4a8 and use_f16_accum:
+        raise ValueError(NVFP4_F16_ACCUM_REJECTION)
+
 
 class DeviceHeuristics:
     max_smem_size: int = 0

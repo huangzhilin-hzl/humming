@@ -405,6 +405,9 @@ class HummingKernel(KernelRuntime, LayerConfig, ComputeConfig, TuningConfig):
                 assert self.a_dtype == dtypes.float16
 
     def check_config(self):
+        assert not (self.use_nvfp4_w4a8 and self.use_f16_accum), (
+            "NVFP4 W4A8 promotion requires FP32 accumulation"
+        )
         assert self.num_threads <= 1024
         assert not (self.mma_type == MmaType.MXMMA and self.use_f16_accum), (
             "MXMMA does not support FP16 accumulation"

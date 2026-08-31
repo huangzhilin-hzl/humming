@@ -86,6 +86,7 @@ public:
       static_assert(std::is_same<ElementA, Float8E4M3>::value);
       static_assert(std::is_same<ElementB, Float4E2M1>::value);
       static_assert(std::is_same<typename Ctx::ElementBS, Float32>::value);
+      static_assert(MmaOpClass::kCTypeBits == 32);
       static_assert(Ctx::kWeightScaleGroupSize == 16);
       static_assert(!kUsePackedKLayout);
       constexpr uint32_t kTransformIters = WarpShape::N / (MmaShape::N / 4);

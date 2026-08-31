@@ -21,6 +21,8 @@ class HummingWeightSchema(BaseWeightSchema):
     has_zero_point: bool = False
     is_fp_zero_point: bool = False
     hadamard_block_size: int = 0
+    # Source-format provenance; prepare_layer_config resolves the SM90 mode.
+    is_nvfp4: bool = False
 
     KWARGS_ALIAS: ClassVar[dict[str, list[str]]] = {
         "b_dtype": ["weight_dtype", "dtype"],

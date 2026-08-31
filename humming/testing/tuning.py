@@ -374,7 +374,9 @@ def enumerate_test_tuning_configs(
     layer_config: LayerConfig,
     compute_config: ComputeConfig,
 ) -> list[tuple[dict, dict]]:
-    if layer_config.mma_type == MmaType.MXMMA and compute_config.use_f16_accum:
+    if compute_config.use_f16_accum and (
+        layer_config.mma_type == MmaType.MXMMA or layer_config.use_nvfp4_w4a8
+    ):
         return []
 
     rng = random.Random(_get_seed(layer_config, compute_config))
