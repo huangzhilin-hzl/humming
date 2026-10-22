@@ -76,9 +76,9 @@ def may_process_input(
     if should_quantize:
         assert config.as_dtype is not None
         quant_mode = config.input_quant_mode.value
-        quant_dtype = str(config.a_dtype)
+        quant_dtype = config.a_dtype.dtype_str
         quant_group_size = config.input_scale_group_size or None
-        group_scale_dtype = str(config.as_dtype)
+        group_scale_dtype = config.as_dtype.dtype_str
 
     should_transform = hadamard_block_size is not None and hadamard_block_size > 1
     has_activation = activation_type != "none"
