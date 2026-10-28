@@ -16,11 +16,8 @@ def tops_bench(dtype: str, mma_type: str | None = None, use_f16_accum: bool = Fa
         dtype_bits = dtypes.DataType.from_str(dtype).num_bits
         mma_shape_k = mma_k_bits // dtype_bits
     else:
-        # wgmma only accepts .m64nNk* instruction shapes, and MmaOpClass emits
-        # .m{n}n{m}k{k} because the project's A operand maps to wgmma's B
-        # operand. The shape therefore has to be passed transposed.
-        mma_shape_m = 256  # wgmma N
-        mma_shape_n = 64  # wgmma M, fixed on SM90
+        mma_shape_m = 256
+        mma_shape_n = 64
         mma_shape_k = 256 // dtypes.DataType.from_str(dtype).num_bits
 
     if "float" in dtype:
