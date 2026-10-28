@@ -4,7 +4,8 @@ from enum import Enum
 import numpy as np
 
 from humming import dtypes
-from humming.config import GemmType, LayerConfig
+from humming.config import GemmType, LayerConfig, TuningConfig
+from humming.config.mma import get_register_budget_error
 from humming.device import current_device
 from humming.tune.base import DeviceHeuristics
 from humming.tune.candidate import DeviceProfile, TuningDecision, TuningProblem
@@ -154,6 +155,38 @@ class Sm90H20Heuristics(DeviceHeuristics):
             if reuse_candidates:
                 return max(reuse_candidates)
         return block_m
+
+    @classmethod
+    def _resident_cta_cap(
+        cls,
+        layer_config: LayerConfig,
+        config: dict,
+        smem_size: int | None,
+        num_threads: int,
+        limit: int = 4,
+    ) -> int:
+        """Largest residency the shared-memory, thread and register budgets allow.
+
+        Residency used to be capped at three CTAs to keep register headroom on an
+        assumption rather than a check. H20 runs these GEMMs power-throttled, so
+        the tensor pipe, the ALU and the issue slots are each only partly busy and
+        one more resident warpgroup overlaps them, which measures faster on every
+        routed-MoE size tested. Ask the register budget for the real limit.
+
+        ``smem_size=None`` ignores shared memory here and leaves it to
+        ``fit_sm90_tile``, which trades pipeline stages for the extra residency.
+        """
+        resource_ctas = 1024 // num_threads
+        if smem_size is not None:
+            resource_ctas = min(resource_ctas, cls.max_smem_size // smem_size)
+        tuning_fields = TuningConfig.get_field_names()
+        tuning_values = {key: value for key, value in config.items() if key in tuning_fields}
+        use_f16_accum = config.get("use_f16_accum", False)
+        for num_ctas in range(min(limit, resource_ctas), 0, -1):
+            tuning = TuningConfig(**(tuning_values | {"num_ctas_per_sm": num_ctas}))
+            if get_register_budget_error(layer_config, tuning, use_f16_accum) is None:
+                return num_ctas
+        return 1
 
     @classmethod
     def _tune_long_k_moe_residency(
@@ -586,6 +619,23 @@ class Sm90H20Heuristics(DeviceHeuristics):
         return config
 
     @classmethod
+    def _raise_moe_residency(
+        cls,
+        layer_config: LayerConfig,
+        config: dict,
+    ) -> dict:
+        """Raise a routed-MoE tile to the residency its budget allows.
+
+        Shared memory is left to ``fit_sm90_tile``: a fourth resident CTA is
+        still a win when the pipeline gives back a stage for it.
+        """
+        num_threads = math.prod(config["block_shape"]) // math.prod(config["warp_shape"]) * 32
+        num_ctas = cls._resident_cta_cap(layer_config, config, None, num_threads)
+        if num_ctas > config["num_ctas_per_sm"]:
+            config = config | {"num_ctas_per_sm": num_ctas}
+        return config
+
+    @classmethod
     def get_config(
         cls,
         layer_config: LayerConfig,
@@ -637,6 +687,11 @@ class Sm90H20Heuristics(DeviceHeuristics):
                 config = config | {"use_tma": True}
                 if accumulator_registers < 64:
                     config = config | {"use_warp_spec": True}
+        is_moe = gemm_type != GemmType.DENSE
+        if is_moe and not use_batch_invariant:
+            # Every routed-MoE size benefits from the extra resident warpgroups,
+            # so let the budget decide instead of the residency the ramp landed on.
+            config = cls._raise_moe_residency(layer_config, config)
         config = fit_sm90_tile(
             layer_config,
             config,
