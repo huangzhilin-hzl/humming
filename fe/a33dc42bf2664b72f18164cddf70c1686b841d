@@ -1,0 +1,16 @@
+humming/tune/sm90_policies.py
+  h_65d95dfcbf63bf 1413-1419
+tests/test_sm90_h20_heuristics.py
+  h_65d95dfcbf63bf 120-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fea33dc42bf2664b72f18164cddf70c1686b841d",
+  "prompts": {},
+  "humans": {
+    "h_65d95dfcbf63bf": {
+      "author": "墨楼 <huangzhilin.hzl@antgroup.com>"
+    }
+  }
+}
