@@ -1,0 +1,17 @@
+tests/test_modelopt_schema.py
+  h_65d95dfcbf63bf 1-9,11-137,165-236
+  h_65d95dfcbf63bf 10,138-164
+humming/schema/modelopt.py
+  h_65d95dfcbf63bf 19,30,182,221,226-227,232,242-243,293-332
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2b349ab83ac0e8066ad8f805282a0b16d492ccb2",
+  "prompts": {},
+  "humans": {
+    "h_65d95dfcbf63bf": {
+      "author": "墨楼 <huangzhilin.hzl@antgroup.com>"
+    }
+  }
+}
