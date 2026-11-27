@@ -1,0 +1,18 @@
+humming/schema/autoround.py
+  h_65d95dfcbf63bf 21,44-48,53
+humming/schema/gptq.py
+  h_65d95dfcbf63bf 2,6,18-26,98-119,140-141
+tests/test_gptq_schema.py
+  h_65d95dfcbf63bf 1-533
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fef925aa819213e91407937b4af9b54ee4c3a863",
+  "prompts": {},
+  "humans": {
+    "h_65d95dfcbf63bf": {
+      "author": "墨楼 <huangzhilin.hzl@antgroup.com>"
+    }
+  }
+}
