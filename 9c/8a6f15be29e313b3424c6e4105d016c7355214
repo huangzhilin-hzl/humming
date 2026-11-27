@@ -1,0 +1,14 @@
+tests/test_jit_infrastructure.py
+  h_65d95dfcbf63bf 718,722,729-731,776,780,787-789
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9c8a6f15be29e313b3424c6e4105d016c7355214",
+  "prompts": {},
+  "humans": {
+    "h_65d95dfcbf63bf": {
+      "author": "墨楼 <huangzhilin.hzl@antgroup.com>"
+    }
+  }
+}
