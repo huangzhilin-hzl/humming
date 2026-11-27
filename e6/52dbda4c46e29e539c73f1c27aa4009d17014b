@@ -1,0 +1,22 @@
+humming/forward.py
+  h_65d95dfcbf63bf 208
+humming/kernel/humming.py
+  h_65d95dfcbf63bf 612-613,711-719,721-728,740,750,756-763,767-769
+humming/ops/gemm.py
+  h_65d95dfcbf63bf 28,39,44,68,81-83,85
+tests/kernels/humming/test_special_paths.py
+  h_65d95dfcbf63bf 245-300
+tests/test_jit_infrastructure.py
+  h_65d95dfcbf63bf 483,531,703-868
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e652dbda4c46e29e539c73f1c27aa4009d17014b",
+  "prompts": {},
+  "humans": {
+    "h_65d95dfcbf63bf": {
+      "author": "墨楼 <huangzhilin.hzl@antgroup.com>"
+    }
+  }
+}
